@@ -1,0 +1,19 @@
+[Unit]
+Description=HBLink3 DMR Master Server
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/opt/hblink
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/opt/hblink/venv/bin/python3 bridge.py -c hblink.cfg
+Restart=always
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=hblink3
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+

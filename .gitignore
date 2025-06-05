@@ -1,0 +1,7 @@
+logs/
+runtime/
+*.pyc
+__pycache__/
+.env
+*.log
+*.pid
