@@ -1,0 +1,30 @@
+[General]
+RptAddress=127.0.0.1
+RptPort=62000
+LocalAddress=127.0.0.1
+LocalPort=62001
+Daemon=1
+
+[Network 1]
+Enabled=1
+Address={{HBLINK_IP}}
+Port=62030
+Password=passw0rd
+TGRewrite0=2,4000,2,4000,1
+Id={{REPEATER_ID}}
+Name=HBLink3
+Slot1=1
+Slot2=1
+Debug=0
+
+[Network 2]
+Enabled=1
+Address=master.brandmeister.network
+Port=62031
+Password={{BM_PASSWORD}}
+TGRewrite0=2,4000,2,4000,1
+Id={{REPEATER_ID}}
+Name=BM
+Slot1=1
+Slot2=1
+Debug=0

@@ -1,0 +1,16 @@
+[Unit]
+Description=DMRGateway Service
+After=network.target
+
+[Service]
+User=root
+ExecStart=/usr/local/bin/DMRGateway
+Restart=always
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=dmrgateway
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
