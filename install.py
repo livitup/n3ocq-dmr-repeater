@@ -1,76 +1,89 @@
 #!/usr/bin/env python3
-
 import os
 import shutil
+import socket
 
-# Prompt user for install type
-print("==== HBLink3 Unified Installer ====")
-print("Select install target:")
-print("  1) VPS (HBLink3 + Parrot)")
-print("  2) Repeater Pi-Star")
-print("  3) Hotspot WPSD")
+def get_primary_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except:
+        return "127.0.0.1"
 
-target = input("Enter 1, 2 or 3: ").strip()
+def prompt(label, default=None):
+    if default:
+        result = input(f"{label} [{default}]: ").strip()
+        return result if result else default
+    return input(f"{label}: ").strip()
 
-# Common prompts
-hblink_ip = input("Enter HBLink3 VPS IP address: ").strip()
-bm_password = input("Enter BrandMeister password: ").strip()
+print("=== HBLink3 Unified Installer ===")
 
-# Ask for DMR IDs
-repeater_id = input("Enter Repeater DMR ID [314601]: ").strip() or "314601"
-hotspot_id = input("Enter Hotspot DMR ID [319280601]: ").strip() or "319280601"
-parrot_id = input("Enter Parrot DMR ID [9999]: ").strip() or "9999"
+role = ""
+while role not in ["vps", "repeater", "hotspot"]:
+    role = input("Are you setting up a VPS, Repeater, or Hotspot? ").lower().strip()
 
-# Template substitutions
+hblink_ip = prompt("Enter the VPS HBLink3 server IP address", get_primary_ip())
+repeater_id = prompt("Enter the Repeater DMR ID", "314601")
+hotspot_id = prompt("Enter the Hotspot DMR ID", "319280601")
+parrot_id = prompt("Enter the Parrot Server DMR ID", "9999")
+bm_pass = prompt("Enter BrandMeister password", "passw0rd")
+
 subs = {
-    "{{HBLINK_IP}}": hblink_ip,
-    "{{BM_PASSWORD}}": bm_password,
     "{{REPEATER_ID}}": repeater_id,
     "{{HOTSPOT_ID}}": hotspot_id,
-    "{{PARROT_ID}}": parrot_id
+    "{{PARROT_ID}}": parrot_id,
+    "{{BM_PASSWORD}}": bm_pass,
+    "{{HBLINK_IP}}": hblink_ip,
 }
 
-# Output folder map
-if target == "1":
-    config_targets = [
+# Template mapping
+template_map = {
+    "vps": [
         ("hblink.cfg.template", "/opt/hblink/hblink.cfg"),
         ("parrot.cfg.template", "/opt/hblink/parrot.cfg"),
         ("hblink3.service.template", "/etc/systemd/system/hblink3.service"),
-        ("parrot.service.template", "/etc/systemd/system/parrot.service")
-    ]
-elif target == "2":
-    config_targets = [
+        ("parrot.service.template", "/etc/systemd/system/parrot.service"),
+    ],
+    "repeater": [
         ("mmdvmhost_repeater.ini.template", "/etc/mmdvmhost"),
         ("dmrgateway_repeater.ini.template", "/etc/dmrgateway"),
-        ("dmrgateway.service.template", "/etc/systemd/system/dmrgateway.service")
-    ]
-elif target == "3":
-    config_targets = [
+        ("dmrgateway.service.template", "/etc/systemd/system/dmrgateway.service"),
+    ],
+    "hotspot": [
         ("mmdvmhost_hotspot.ini.template", "/etc/mmdvmhost"),
         ("dmrgateway_hotspot.ini.template", "/etc/dmrgateway"),
-        ("dmrgateway.service.template", "/etc/systemd/system/dmrgateway.service")
+        ("dmrgateway.service.template", "/etc/systemd/system/dmrgateway.service"),
     ]
-else:
-    print("Invalid option!")
-    exit(1)
+}
 
-# Generate configs
+config_targets = template_map.get(role, [])
+
 for template_file, output_file in config_targets:
     with open(f"templates/{template_file}", "r") as f:
         content = f.read()
         for k, v in subs.items():
             content = content.replace(k, v)
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    
+    if output_file.endswith("/"):
+        # Write as 'config.ini' if it's just a folder path (e.g., /etc/mmdvmhost)
+        output_file = os.path.join(output_file, "config.ini")
+        
     with open(output_file, "w") as f:
         f.write(content)
     print(f"Deployed {output_file}")
 
-# Reload systemd if needed
+# Reload and enable systemd services
 os.system("systemctl daemon-reload")
-
-if target == "1":
+if role == "vps":
     os.system("systemctl enable hblink3.service")
     os.system("systemctl enable parrot.service")
-elif target in ("2", "3"):
+elif role in ["repeater", "hotspot"]:
     os.system("systemctl enable dmrgateway.service")
 
-print("==== Install complete ====")
+print("\n✅ Installation complete.")
+print("🚀 You can now start the services or reboot the device.")
+
