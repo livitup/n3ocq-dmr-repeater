@@ -55,6 +55,21 @@ while role not in role_map:
 role = role_map[role]
 hblink_ip = prompt("Enter the VPS HBLink3 server IP address", get_primary_ip())
 
+# Stop services if already running
+services_to_stop = []
+if role == "vps":
+    services_to_stop = ["hblink3.service", "parrot.service"]
+elif role in ["repeater", "hotspot"]:
+    services_to_stop = ["dmrgateway.service"]
+
+for svc in services_to_stop:
+    status = os.system(f"systemctl is-active --quiet {svc}")
+    if status == 0:
+        print(f"⏹️  Stopping running service: {svc}")
+        os.system(f"systemctl stop {svc}")
+    else:
+        print(f"ℹ️  Service not running: {svc}")
+
 subs = {
     "{{HBLINK_IP}}": hblink_ip,
     "{{BM_PASSWORD}}": "",
@@ -76,13 +91,30 @@ if role == "vps":
     else:
         print("📁 /opt/hblink already exists. Skipping clone.")
 
+    print("📆 Ensuring virtualenv and dependencies are installed...")
+
     if not os.path.exists("/opt/hblink/venv"):
-        print("📦 Creating virtualenv and installing Python requirements...")
         os.system("python3 -m venv /opt/hblink/venv")
-        os.system("/opt/hblink/venv/bin/pip install --upgrade pip")
+
+    os.system("/opt/hblink/venv/bin/pip install --upgrade pip")
+
+    twisted_check = os.system("/opt/hblink/venv/bin/python -c 'import twisted' > /dev/null 2>&1")
+    if twisted_check != 0:
+        print("⚠️  Installing Python dependencies for HBLink3...")
         os.system("/opt/hblink/venv/bin/pip install -r /opt/hblink/requirements.txt")
     else:
-        print("✅ Virtualenv already exists. Skipping dependency install.")
+        print("✅ Python environment already set up.")
+
+    rules_path = "/opt/hblink/rules.py"
+    rules_template = "# Minimal rules file\nBRIDGES = {}\nUNIT = 'N3OCQ-HBLINK'\n"
+    if os.path.exists(rules_path):
+        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        backup_path = f"{rules_path}.bak.{timestamp}"
+        shutil.copy2(rules_path, backup_path)
+        print(f"⚠️  Backed up existing {rules_path} → {backup_path}")
+    with open(rules_path, "w") as f:
+        f.write(rules_template)
+    print(f"✅ Deployed {rules_path}")
 
     subs["{{PARROT_ID}}"] = prompt("Enter the Parrot Server DMR ID", "9999")
     subs["{{REPEATER_ID}}"] = prompt("Enter the DMR ID of the repeater peer connecting to HBLink3", "314601")
@@ -136,6 +168,14 @@ for template_file, output_path in config_targets:
     with open(output_path, "w") as f:
         f.write(content)
     print(f"✅ Deployed {output_path}")
+
+if role == "vps":
+    log_dir = "/var/log/hblink"
+    if not os.path.exists(log_dir):
+        print(f"📁 Creating log directory: {log_dir}")
+        os.makedirs(log_dir)
+    else:
+        print(f"✅ Log directory already exists: {log_dir}")
 
 os.system("systemctl daemon-reload")
 

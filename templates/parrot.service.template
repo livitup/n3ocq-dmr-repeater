@@ -1,18 +1,13 @@
 [Unit]
-Description=HBLink3 Parrot Server
+Description=HBLink3 Parrot (Playback Server)
 After=network.target
 
 [Service]
-User=root
 WorkingDirectory=/opt/hblink
-Environment="PYTHONUNBUFFERED=1"
-ExecStart=/opt/hblink/venv/bin/python3 parrot.py -c parrot.cfg
-Restart=always
-RestartSec=10
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=parrot
-LimitNOFILE=65536
+ExecStart=/opt/hblink/venv/bin/python3 playback.py -c parrot.cfg
+Restart=on-failure
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
+
