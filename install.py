@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import os
 import socket
+import shutil
+import datetime
 
 def get_primary_ip():
     try:
@@ -84,15 +86,24 @@ for template_file, output_path in config_targets:
         content = f.read()
         for k, v in subs.items():
             content = content.replace(k, v)
+
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     if output_path.endswith("/"):
         output_path = os.path.join(output_path, "config.ini")
 
+    # Backup if file exists
+    if os.path.exists(output_path):
+        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        backup_path = f"{output_path}.bak.{timestamp}"
+        shutil.copy2(output_path, backup_path)
+        print(f"⚠️  Backed up existing {output_path} → {backup_path}")
+
     with open(output_path, "w") as f:
         f.write(content)
-    print(f"Deployed {output_path}")
+    print(f"✅ Deployed {output_path}")
 
+# Enable services
 os.system("systemctl daemon-reload")
 if role == "vps":
     os.system("systemctl enable hblink3.service")
