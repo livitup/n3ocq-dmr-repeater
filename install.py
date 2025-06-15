@@ -51,6 +51,7 @@ subs = {
 
 if role == "vps":
     subs["{{PARROT_ID}}"] = prompt("Enter the Parrot Server DMR ID", "9999")
+    subs["{{REPEATER_ID}}"] = prompt("Enter the DMR ID of the repeater peer connecting to HBLink3", "314601")
 
 elif role == "repeater":
     subs["{{REPEATER_ID}}"] = prompt("Enter the Repeater DMR ID", "314601")
