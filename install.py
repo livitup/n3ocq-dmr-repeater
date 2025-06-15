@@ -3,6 +3,7 @@ import os
 import socket
 import shutil
 import datetime
+import subprocess
 
 def get_primary_ip():
     try:
@@ -19,6 +20,20 @@ def prompt(label, default=None):
         result = input(f"{label} [{default}]: ").strip()
         return result if result else default
     return input(f"{label}: ").strip()
+
+def apt_package_installed(pkg_name):
+    try:
+        subprocess.run(["dpkg", "-s", pkg_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+def install_if_missing(pkg_name):
+    if not apt_package_installed(pkg_name):
+        print(f"📦 Installing missing dependency: {pkg_name}")
+        os.system(f"apt-get update && apt-get install -y {pkg_name}")
+    else:
+        print(f"✅ {pkg_name} already installed.")
 
 print("=== HBLink3 Unified Installer ===")
 
@@ -38,8 +53,22 @@ while role not in role_map:
     role = input("Enter the number for your system type (1-3): ").strip()
 
 role = role_map[role]
+hblink_ip = prompt("Enter the VPS HBLink3 server IP address", get_primary_ip())
+
+subs = {
+    "{{HBLINK_IP}}": hblink_ip,
+    "{{BM_PASSWORD}}": "",
+    "{{REPEATER_ID}}": "",
+    "{{HOTSPOT_ID}}": "",
+    "{{PARROT_ID}}": ""
+}
 
 if role == "vps":
+    print("\n🔧 Checking system dependencies for HBLink3...")
+    install_if_missing("git")
+    install_if_missing("python3-venv")
+    install_if_missing("python3-pip")
+
     print("\n🔧 Installing HBLink3 environment at /opt/hblink")
 
     if not os.path.exists("/opt/hblink"):
@@ -55,18 +84,6 @@ if role == "vps":
     else:
         print("✅ Virtualenv already exists. Skipping dependency install.")
 
-
-hblink_ip = prompt("Enter the VPS HBLink3 server IP address", get_primary_ip())
-
-subs = {
-    "{{HBLINK_IP}}": hblink_ip,
-    "{{BM_PASSWORD}}": "",
-    "{{REPEATER_ID}}": "",
-    "{{HOTSPOT_ID}}": "",
-    "{{PARROT_ID}}": ""
-}
-
-if role == "vps":
     subs["{{PARROT_ID}}"] = prompt("Enter the Parrot Server DMR ID", "9999")
     subs["{{REPEATER_ID}}"] = prompt("Enter the DMR ID of the repeater peer connecting to HBLink3", "314601")
 
