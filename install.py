@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import os
-import shutil
 import socket
 
 def get_primary_ip():
@@ -21,25 +20,44 @@ def prompt(label, default=None):
 
 print("=== HBLink3 Unified Installer ===")
 
-role = ""
-while role not in ["vps", "repeater", "hotspot"]:
-    role = input("Are you setting up a VPS, Repeater, or Hotspot? ").lower().strip()
+print("What are you installing?")
+print("  1) VPS (HBLink3 + Parrot)")
+print("  2) Repeater (Pi-Star)")
+print("  3) Hotspot (WPSD)")
 
-hblink_ip = prompt("Enter the VPS HBLink3 server IP address", get_primary_ip())
-repeater_id = prompt("Enter the Repeater DMR ID", "314601")
-hotspot_id = prompt("Enter the Hotspot DMR ID", "319280601")
-parrot_id = prompt("Enter the Parrot Server DMR ID", "9999")
-bm_pass = prompt("Enter BrandMeister password", "passw0rd")
-
-subs = {
-    "{{REPEATER_ID}}": repeater_id,
-    "{{HOTSPOT_ID}}": hotspot_id,
-    "{{PARROT_ID}}": parrot_id,
-    "{{BM_PASSWORD}}": bm_pass,
-    "{{HBLINK_IP}}": hblink_ip,
+role_map = {
+    "1": "vps",
+    "2": "repeater",
+    "3": "hotspot"
 }
 
-# Template mapping
+role = ""
+while role not in role_map:
+    role = input("Enter the number for your system type (1-3): ").strip()
+
+role = role_map[role]
+
+hblink_ip = prompt("Enter the VPS HBLink3 server IP address", get_primary_ip())
+
+subs = {
+    "{{HBLINK_IP}}": hblink_ip,
+    "{{BM_PASSWORD}}": "",
+    "{{REPEATER_ID}}": "",
+    "{{HOTSPOT_ID}}": "",
+    "{{PARROT_ID}}": ""
+}
+
+if role == "vps":
+    subs["{{PARROT_ID}}"] = prompt("Enter the Parrot Server DMR ID", "9999")
+
+elif role == "repeater":
+    subs["{{REPEATER_ID}}"] = prompt("Enter the Repeater DMR ID", "314601")
+    subs["{{BM_PASSWORD}}"] = prompt("Enter BrandMeister password", "passw0rd")
+
+elif role == "hotspot":
+    subs["{{HOTSPOT_ID}}"] = prompt("Enter the Hotspot DMR ID", "319280601")
+    subs["{{BM_PASSWORD}}"] = prompt("Enter BrandMeister password", "passw0rd")
+
 template_map = {
     "vps": [
         ("hblink.cfg.template", "/opt/hblink/hblink.cfg"),
@@ -61,27 +79,25 @@ template_map = {
 
 config_targets = template_map.get(role, [])
 
-for template_file, output_file in config_targets:
+for template_file, output_path in config_targets:
     with open(f"templates/{template_file}", "r") as f:
         content = f.read()
         for k, v in subs.items():
             content = content.replace(k, v)
-    os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    
-    if output_file.endswith("/"):
-        # Write as 'config.ini' if it's just a folder path (e.g., /etc/mmdvmhost)
-        output_file = os.path.join(output_file, "config.ini")
-        
-    with open(output_file, "w") as f:
-        f.write(content)
-    print(f"Deployed {output_file}")
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-# Reload and enable systemd services
+    if output_path.endswith("/"):
+        output_path = os.path.join(output_path, "config.ini")
+
+    with open(output_path, "w") as f:
+        f.write(content)
+    print(f"Deployed {output_path}")
+
 os.system("systemctl daemon-reload")
 if role == "vps":
     os.system("systemctl enable hblink3.service")
     os.system("systemctl enable parrot.service")
-elif role in ["repeater", "hotspot"]:
+else:
     os.system("systemctl enable dmrgateway.service")
 
 print("\n✅ Installation complete.")

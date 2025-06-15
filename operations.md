@@ -2,82 +2,77 @@
 
 ---
 
-## 1️⃣ VPS (HBLink3 + Parrot)
+## 🔧 VPS (HBLink3 + Parrot)
 
 | Task | Command |
 |------|---------|
 | Check service status | `systemctl status hblink3.service parrot.service` |
 | Start/stop services | `systemctl start|stop hblink3.service` |
-| View real-time logs | `journalctl -u hblink3.service -f` |
-| Full log files | `/var/log/hblink/hblink.log` |
-| Update HBLink3 code (if desired) | Pull repo + re-run `install-hblink3.sh` |
-| Backup config | Commit changes to your GitHub repo |
+| View logs | `journalctl -u hblink3.service -f` |
+| Full log file | `/var/log/hblink/hblink.log` |
+| Reload config | `systemctl restart hblink3.service` |
+| Config files | `/opt/hblink/hblink.cfg`, `parrot.cfg` |
+| Update config | Edit template → regenerate or push manually |
+| Manage repo | Git commit all changes for backup/versioning |
 
 ---
 
-## 2️⃣ Repeater Pi-Star (STM32-DVM)
+## 🔧 Repeater (Pi-Star w/ STM32-DVM)
 
 | Task | Command |
 |------|---------|
-| Check DMRGateway status | `systemctl status dmrgateway.service` |
-| Start/stop DMRGateway | `systemctl start|stop dmrgateway.service` |
-| View DMRGateway logs | `journalctl -u dmrgateway.service -f` |
-| Do not edit DMRGateway in Pi-Star UI | ✅ Leave this alone |
-| Avoid Pi-Star "hostfiles update" | ✅ Don’t use |
-| MMDVMHost changes | Update `/etc/mmdvmhost` directly (via repo files) |
+| Check DMRGateway | `systemctl status dmrgateway.service` |
+| View logs | `journalctl -u dmrgateway.service -f` |
+| Config files | `/etc/dmrgateway/config.ini`, `/etc/mmdvmhost/config.ini` |
+| Restart DMRGateway | `systemctl restart dmrgateway.service` |
+| **Don't** use Pi-Star dashboard for DMRGateway | ✅ Prevents config override |
+| Update | Use updated templates + re-run installer or deploy manually |
 
 ---
 
-## 3️⃣ Hotspot WPSD
+## 🔧 Hotspot (WPSD)
 
 | Task | Command |
 |------|---------|
-| Check DMRGateway status | `systemctl status dmrgateway.service` |
-| Start/stop DMRGateway | `systemctl start|stop dmrgateway.service` |
-| View DMRGateway logs | `journalctl -u dmrgateway.service -f` |
-| Config files identical to repeater | ✅ Same repo files used |
-| WPSD Web UI | ✅ May still function for other tasks |
+| Check DMRGateway | `systemctl status dmrgateway.service` |
+| View logs | `journalctl -u dmrgateway.service -f` |
+| Config files | `/etc/dmrgateway/config.ini`, `/etc/mmdvmhost/config.ini` |
+| Restart DMRGateway | `systemctl restart dmrgateway.service` |
+| Web UI | WPSD does not override systemd-controlled DMRGateway |
+| Update | Use templates or re-run `install.py` with correct role |
 
 ---
 
-## 4️⃣ BrandMeister Integration
+## 📡 Talkgroup Routing Notes
 
-- BM password is stored in your `dmrgateway_*.ini` files.
-- If BM rotates your API password, update both repeater and hotspot configs and commit back to GitHub.
-- If BM master IP changes → update `Address=` in config.
-
----
-
-## 5️⃣ GitOps Rule
-
-- ✅ **All config changes happen in Git.**
-- ✅ Clone repo → edit files → commit → deploy using install scripts.
-- ✅ Zero risk of config drift across servers.
+- Use **TG 9999** for the Parrot server (or the Parrot ID you specified)
+- Routing is handled by:
+  - Your **radio codeplug** (where you transmit TG 9999)
+  - HBLink3's **peer list** and **TG mapping**
+- Repeater/Hotspot only need to pass the traffic to HBLink3; they do **not** need to know the Parrot ID
+- Other talkgroups can be routed by TGRewrite and HBLink3 rules
 
 ---
 
-## 6️⃣ Security Checklist (VPS)
+## 🔒 Security Tips
 
 | Task | Recommendation |
-|------|-----------------|
-| Limit SSH to key auth only | ✅ Strongly recommended |
-| Use Fail2Ban | ✅ Recommended |
-| Use ufw/iptables to limit HBLink3 to known repeater IPs | ✅ Great practice |
-| Monitor systemd logs routinely | ✅ journalctl |
+|------|----------------|
+| SSH Access | Use key auth only, disable password login |
+| Firewall | Lock HBLink3 UDP port to repeater IPs |
+| Fail2Ban | Recommended on VPS |
+| Monitor logs | Use `journalctl -u <service>` for real-time logs |
+| Backup | Commit to GitHub regularly after config changes |
 
 ---
 
-## Daily Summary:
+## 🧠 Best Practices
 
-- **Pi-Star:** Don't touch DMRGateway in dashboard — systemd controls it.
-- **WPSD:** Fully systemd native.
-- **VPS:** HBLink3 + Parrot fully isolated, controlled, and hardened.
+- Keep **template files** as your master configs
+- Never manually edit live configs without also updating the repo
+- Commit and push changes after any deployment
 
 ---
 
-## Future-Proof Notes
+✅ For questions or further automation, run `install.py` again!
 
-- This repo design will scale if you add more repeaters or hotspots.
-- HBLink3 Master can easily handle multiple peers.
-- DMRGateway gives you full multi-network flexibility.
-- You can integrate HBMon3 dashboard easily later if you want full visual network monitor.
