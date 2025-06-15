@@ -39,6 +39,23 @@ while role not in role_map:
 
 role = role_map[role]
 
+if role == "vps":
+    print("\n🔧 Installing HBLink3 environment at /opt/hblink")
+
+    if not os.path.exists("/opt/hblink"):
+        os.system("git clone https://github.com/n0mjs710/HBlink3.git /opt/hblink")
+    else:
+        print("📁 /opt/hblink already exists. Skipping clone.")
+
+    if not os.path.exists("/opt/hblink/venv"):
+        print("📦 Creating virtualenv and installing Python requirements...")
+        os.system("python3 -m venv /opt/hblink/venv")
+        os.system("/opt/hblink/venv/bin/pip install --upgrade pip")
+        os.system("/opt/hblink/venv/bin/pip install -r /opt/hblink/requirements.txt")
+    else:
+        print("✅ Virtualenv already exists. Skipping dependency install.")
+
+
 hblink_ip = prompt("Enter the VPS HBLink3 server IP address", get_primary_ip())
 
 subs = {
