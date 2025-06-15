@@ -93,7 +93,6 @@ for template_file, output_path in config_targets:
     if output_path.endswith("/"):
         output_path = os.path.join(output_path, "config.ini")
 
-    # Backup if file exists
     if os.path.exists(output_path):
         timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         backup_path = f"{output_path}.bak.{timestamp}"
@@ -104,14 +103,32 @@ for template_file, output_path in config_targets:
         f.write(content)
     print(f"✅ Deployed {output_path}")
 
-# Enable services
 os.system("systemctl daemon-reload")
+
 if role == "vps":
     os.system("systemctl enable hblink3.service")
     os.system("systemctl enable parrot.service")
+
+    start_now = input("Restart HBLink3 and Parrot services now? [Y/n]: ").strip().lower()
+    if start_now in ("", "y", "yes"):
+        os.system("systemctl restart hblink3.service")
+        os.system("systemctl restart parrot.service")
+        print("✅ HBLink3 and Parrot services restarted.")
+    else:
+        print("⏸️ Services were not restarted. You can do it manually with:")
+        print("   systemctl restart hblink3.service")
+        print("   systemctl restart parrot.service")
+
 else:
     os.system("systemctl enable dmrgateway.service")
 
+    start_now = input("Restart DMRGateway service now? [Y/n]: ").strip().lower()
+    if start_now in ("", "y", "yes"):
+        os.system("systemctl restart dmrgateway.service")
+        print("✅ DMRGateway service restarted.")
+    else:
+        print("⏸️ Service was not restarted. You can do it manually with:")
+        print("   systemctl restart dmrgateway.service")
+
 print("\n✅ Installation complete.")
-print("🚀 You can now start the services or reboot the device.")
 
