@@ -81,6 +81,7 @@ say "Updating package index and installing dependencies..."
 sudo apt update | tee -a "$LOG_FILE"
 sudo apt full-upgrade -y | tee -a "$LOG_FILE"
 sudo apt install -y \
+  git \
   python3 python3-venv python3-pip \
   cmake libusb-1.0-0-dev \
   libwxgtk3.2-dev libasound2-dev libudev-dev \
