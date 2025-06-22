@@ -3,7 +3,7 @@
 Fully automated installer for configuring **HBLink3**, **Parrot**, **DMRGateway**, and **MMDVMHost** on:
 
 - VPS (HBLink3 + Parrot)
-- Pi-Star–based repeaters
+- Raspberry Pi / STM32-DVM based repeaters
 - WPSD-based hotspots
 
 ---
