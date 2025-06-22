@@ -3,34 +3,15 @@
 set -e
 
 # === CONFIGURATION ===
-REPO_URL="https://github.com/livitup/n3ocq-dmr-repeater.git"
-CLONE_DIR="$HOME/n3ocq-dmr-repeater"
-ROLE="2"  # Default to Repeater
+REPO_URL="https://github.com/livitup/dmr-repeater-setup-tools.git"
+CLONE_DIR="$HOME/dmr-repeater-setup-tools"
+ROLE="2"  # 2 = Repeater
 LOG_FILE="/var/log/bootstrap.log"
-CONFIG_FILE=""
+CONFIG_FILE="/etc/dmr/setup.cfg"
 
 # === FUNCTIONS ===
 function say() {
   echo -e "\033[1;32m[BOOTSTRAP]\033[0m $1" | tee -a "$LOG_FILE"
-}
-
-function parse_args() {
-  while [[ "$#" -gt 0 ]]; do
-    case $1 in
-      --role)
-        ROLE="$2"
-        shift 2
-        ;;
-      --config)
-        CONFIG_FILE="$2"
-        shift 2
-        ;;
-      *)
-        echo "Unknown option: $1"
-        exit 1
-        ;;
-    esac
-  done
 }
 
 function configure_networking() {
@@ -90,28 +71,26 @@ function install_dmrgateway() {
   say "DMRGateway installed to /usr/local/bin/DMRGateway"
 }
 
-# === MAIN ===
+# Prepare log
 mkdir -p /var/log
 sudo rm -f "$LOG_FILE"
 sudo touch "$LOG_FILE"
 sudo chown $(whoami):$(whoami) "$LOG_FILE"
 
-parse_args "$@"
-
 say "Updating package index and installing dependencies..."
 sudo apt update | tee -a "$LOG_FILE"
 sudo apt full-upgrade -y | tee -a "$LOG_FILE"
 sudo apt install -y \
-  git python3 python3-venv python3-pip \
-  build-essential cmake libusb-1.0-0-dev \
-  libwxgtk3.0-gtk3-dev libasound2-dev libudev-dev \
+  python3 python3-venv python3-pip \
+  cmake libusb-1.0-0-dev \
+  libwxgtk3.2-dev libasound2-dev libudev-dev \
   libpulse-dev libfftw3-dev libgps-dev libi2c-dev \
   wireless-tools wpasupplicant net-tools | tee -a "$LOG_FILE"
 
 configure_networking
 install_dmrgateway
 
-say "Cloning n3ocq-dmr-repeater repository..."
+say "Cloning dmr-repeater-setup-tools repository..."
 if [ ! -d "$CLONE_DIR" ]; then
   git clone "$REPO_URL" "$CLONE_DIR" | tee -a "$LOG_FILE"
 else
@@ -120,24 +99,25 @@ fi
 
 cd "$CLONE_DIR"
 
-if [[ -n "$CONFIG_FILE" ]]; then
-  say "Running install.py with config: $CONFIG_FILE"
+if [ -f "$CONFIG_FILE" ]; then
+  say "Using config file at $CONFIG_FILE for installation..."
   sudo python3 install.py --role repeater --config "$CONFIG_FILE" | tee -a "$LOG_FILE"
 else
-  say "Running install.py with interactive mode"
+  say "No config file found. Proceeding with default role install (role=$ROLE)..."
   echo -e "$ROLE\n" | sudo python3 install.py | tee -a "$LOG_FILE"
 fi
 
 say "Enabling and starting DMRGateway service..."
 sudo systemctl enable dmrgateway.service | tee -a "$LOG_FILE"
 sudo systemctl restart dmrgateway.service | tee -a "$LOG_FILE"
-say "Checking DMRGateway status..."
+
+say "Checking status of DMRGateway service..."
 if systemctl is-active --quiet dmrgateway.service; then
   say "✅ DMRGateway service is running."
 else
-  say "❌ DMRGateway service is NOT running. Check $LOG_FILE"
+  say "❌ DMRGateway service is NOT running. Please review the log at $LOG_FILE"
 fi
 
 say "Setup complete. You may reboot if desired."
 echo -e "\nTo start services manually:\n  sudo systemctl restart dmrgateway.service" | tee -a "$LOG_FILE"
-echo -e "\n✅ Repeater setup complete." | tee -a "$LOG_FILE"
+echo -e "\n✅ Repeater setup ready." | tee -a "$LOG_FILE"
