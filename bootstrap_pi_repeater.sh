@@ -3,7 +3,7 @@
 set -e
 
 # === CONFIGURATION ===
-REPO_URL="https://github.com/livitup/dmr-repeater-setup-tools.git"
+REPO_URL="https://github.com/livitup/n3ocq-dmr-repeater.git"
 CLONE_DIR="$HOME/dmr-repeater-setup-tools"
 ROLE="2"  # 2 = Repeater
 LOG_FILE="/var/log/bootstrap.log"
