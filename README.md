@@ -1,10 +1,10 @@
 # DMR Repeater System Setup
 
-This project automates the installation and configuration of a DMR repeater, hotspot, or HBLink3+Parrot server on a Raspberry Pi or VPS.
+This project automates the installation and configuration of a DMR repeater, hotspot, or HBLink3+Parrot server on a Raspberry Pi or VPS for a system with local talkgroups and a Brandmeister link.
 
 ---
 
-## 🔧 Supported Install Targets
+## Supported Install Targets
 
 1. **Repeater** – Runs DMRGateway and MMDVMHost (e.g., Pi-Star replacement)
 2. **Hotspot** – Uses WPSD + DMRGateway
@@ -12,16 +12,16 @@ This project automates the installation and configuration of a DMR repeater, hot
 
 ---
 
-## 🚀 Quick Start (Repeater Install)
+## Quick Start (Repeater Install)
 
 1. Flash Raspberry Pi OS (Lite) to an SD card
 2. Boot your Pi and log in via SSH
 3. Run the following:
 
 ```bash
-curl -O https://raw.githubusercontent.com/livitup/n3ocq-dmr-repeater/main/bootstrap.sh
-chmod +x bootstrap.sh
-./bootstrap.sh
+curl -O https://raw.githubusercontent.com/livitup/n3ocq-dmr-repeater/main/bootstrap_pi_repeater.sh
+chmod +x bootstrap_pi_repeater.sh
+./bootstrap_pi_repeater.sh
 ```
 
 This will:
@@ -30,39 +30,34 @@ This will:
 - Clone the GitHub repo
 - Run `install.py` with role = repeater
 
+## Automated Installation
+You can bypass prompts by providing a config file: /etc/dmr/setup.cfg  No additional command line arguments are required, this file will be used if it exists, otherwise the script will prompt for inputs.
+
+### Example `setup.cfg`
+```ini
+[DEFAULT]
+REPEATER_ID = <Your Brandmeister Assigned Repeater ID>
+BM_PASSWORD = <Your Brandmeister Password>
+HBLINK_IP = <IP Address of your HBLINK server>
+```
 ---
 
 ## ⚙️ Using Config Files
 
 You can bypass prompts by providing a config file using the `--config` flag.
 
-### Example `repeater.cfg`
-```ini
-[DEFAULT]
-REPEATER_ID = 314601
-BM_PASSWORD = my_secure_password
-HBLINK_IP = 192.168.5.100
-```
+
+
 
 ### Run with Config:
 ```bash
-python3 install.py --role repeater --config repeater.cfg
+python3 install.py --role hotspot --config hotspot.cfg
 ```
-
-You can create config files for other roles:
-- `vps.cfg` for VPS (requires HBLINK_IP and PARROT_ID)
-- `hotspot.cfg` for Hotspot (requires HOTSPOT_ID and BM_PASSWORD)
 
 If a config file is passed in, the script:
 - Suppresses prompts
 - Substitutes values into templates automatically
 - Backs up existing system files
-
-The bootstrap script also supports configuration files:
-```bash
-./bootstrap.sh --config repeater.cfg
-```
-
 ---
 
 ## 🖥 VPS Install
@@ -80,10 +75,21 @@ This will:
 - Deploy config files and systemd services
 - Start HBLink3 and Parrot
 
+## Automated Installation
+You can bypass prompts by providing a config file.
 To use a config file:
 ```bash
 sudo python3 install.py --role vps --config vps.cfg
 ```
+### `vps.cfg`
+```ini
+[DEFAULT]
+REPEATER_ID = <Your Brandmeister Assigned Repeater ID>
+HOTSPOT_ID = <Your assigned Brandmeister Hotspot ID>
+BM_PASSWORD = <Your Brandmeister Password>
+PARROT_ID = <Talkgroup for the local Parrot Server>
+```
+
 
 ---
 
@@ -102,10 +108,16 @@ To use a config file:
 ```bash
 sudo python3 install.py --role hotspot --config hotspot.cfg
 ```
-
+### `hotspot.cfg`
+```ini
+[DEFAULT]
+HOTSPOT_ID = <Your Brandmeister Hotspot ID>
+BM_PASSWORD = <Your Brandmeister Password>
+HBLINK_IP = <IP/Hostname of your HBLink Server>
+```
 ---
 
-## 🧠 Tips
+## Tips
 
 - All generated config files are backed up with timestamps before overwrite
 - Logs are stored in `/var/log/bootstrap.log`
