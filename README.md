@@ -1,156 +1,154 @@
-# N3OCQ DMR Repeater Stack Installer
+# DMR Repeater System Setup
 
-Fully automated installer for configuring **HBLink3**, **Parrot**, **DMRGateway**, and **MMDVMHost** on:
-
-- VPS (HBLink3 + Parrot)
-- Raspberry Pi / STM32-DVM based repeaters
-- WPSD-based hotspots
+This project automates the installation and configuration of a DMR repeater, hotspot, or HBLink3+Parrot server on a Raspberry Pi or VPS.
 
 ---
 
-## 🔧 Requirements
+## 🔧 Supported Install Targets
 
-### For All Systems
-- A fresh install of the target OS (see below)
-- Internet connectivity
-- Root access (or `sudo` privileges)
-
-### OS Support
-- **Repeater / Hotspot**: Raspberry Pi OS (Lite recommended)
-- **VPS**: Debian/Ubuntu-based distributions
+1. **Repeater** – Runs DMRGateway and MMDVMHost (e.g., Pi-Star replacement)
+2. **Hotspot** – Uses WPSD + DMRGateway
+3. **VPS** – Runs HBLink3 + Parrot server
 
 ---
 
-## 🚀 1. Repeater Setup (Pi + Radio Modem)
+## 🚀 Quick Start (Repeater Install)
 
-### ✅ Prerequisites
-- Fresh install of **Raspberry Pi OS Lite**
-- Wired or Wi-Fi internet access
-- A valid **DMR Repeater ID**
-- Your **BrandMeister API password**
-
-### 📅 Installation
-
-1. Boot your Raspberry Pi and login
-2. Run the bootstrap script:
+1. Flash Raspberry Pi OS (Lite) to an SD card
+2. Boot your Pi and log in via SSH
+3. Run the following:
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/livitup/n3ocq-dmr-repeater/main/bootstrap.sh)
+curl -O https://raw.githubusercontent.com/livitup/n3ocq-dmr-repeater/main/bootstrap.sh
+chmod +x bootstrap.sh
+./bootstrap.sh
 ```
 
-3. Follow prompts for:
-   - Network configuration (DHCP/static/wifi)
-   - BrandMeister credentials
-   - DMR ID
-
-4. Script will:
-   - Install required dependencies
-   - Clone this repo
-   - Install DMRGateway from source
-   - Auto-configure everything
-   - Enable and start `dmrgateway.service`
+This will:
+- Prompt for networking setup (DHCP, Static, Wi-Fi)
+- Install dependencies and DMRGateway
+- Clone the GitHub repo
+- Run `install.py` with role = repeater
 
 ---
 
-## 🛁 2. Hotspot Setup (e.g., WPSD Image)
+## ⚙️ Using Config Files
 
-### ✅ Prerequisites
-- WPSD-based Pi image (https://www.w0chp.net/)
-- A valid **DMR Hotspot ID**
-- Your **BrandMeister API password**
+You can bypass prompts by providing a config file using the `--config` flag.
 
-### 📅 Installation
+### Example `repeater.cfg`
+```ini
+[DEFAULT]
+REPEATER_ID = 314601
+BM_PASSWORD = my_secure_password
+HBLINK_IP = 192.168.5.100
+```
 
-1. SSH into your hotspot
-2. Clone this repo and run the installer:
-
+### Run with Config:
 ```bash
-git clone https://github.com/livitup/n3ocq-dmr-repeater.git
-cd n3ocq-dmr-repeater
-sudo python3 install.py --role hotspot
+python3 install.py --role repeater --config repeater.cfg
 ```
 
-3. Follow prompts for DMR ID and password.
+You can create config files for other roles:
+- `vps.cfg` for VPS (requires HBLINK_IP and PARROT_ID)
+- `hotspot.cfg` for Hotspot (requires HOTSPOT_ID and BM_PASSWORD)
+
+If a config file is passed in, the script:
+- Suppresses prompts
+- Substitutes values into templates automatically
+- Backs up existing system files
+
+The bootstrap script also supports configuration files:
+```bash
+./bootstrap.sh --config repeater.cfg
+```
 
 ---
 
-## 🌐 3. VPS Setup (HBLink3 + Parrot)
+## 🖥 VPS Install
 
-### ✅ Prerequisites
-- Ubuntu 20.04+ or Debian 11+ VPS
-- Root access
-- Open TCP port 62030 on firewall
-
-### 📅 Installation
-
-1. SSH into your VPS
-2. Clone and run the installer:
-
+On a fresh VPS:
 ```bash
 git clone https://github.com/livitup/n3ocq-dmr-repeater.git
 cd n3ocq-dmr-repeater
 sudo python3 install.py --role vps
 ```
 
-3. Follow prompts:
-   - VPS public IP address
-   - Repeater peer DMR ID
-   - Parrot TG ID (usually 9999)
+This will:
+- Clone and install HBLink3
+- Set up virtual environment
+- Deploy config files and systemd services
+- Start HBLink3 and Parrot
 
-4. Installer will:
-   - Install dependencies
-   - Clone and set up HBLink3 and Parrot
-   - Deploy config files and services
-   - Enable and start `hblink3.service` and `parrot.service`
-
----
-
-## 📂 File Structure
-
-```
-n3ocq-dmr-repeater/
-├── bootstrap.sh                  # For repeaters (Pi)
-├── install.py                   # Unified installer for all roles
-├── templates/                   # Templated config and service files
-├── operations.md                # Operational reference
-└── logs/                        # Install logs
-```
-
----
-
-## 🛠️ Service Management
-
+To use a config file:
 ```bash
-# Restart DMRGateway (Repeater/Hotspot)
-sudo systemctl restart dmrgateway
-
-# Restart HBLink3 (VPS)
-sudo systemctl restart hblink3
-
-# Restart Parrot (VPS)
-sudo systemctl restart parrot
+sudo python3 install.py --role vps --config vps.cfg
 ```
 
 ---
 
-## 📖 Advanced Usage
+## 📶 Hotspot (WPSD)
 
-### Running Installer Non-Interactively
-
+On a device running WPSD:
 ```bash
-sudo python3 install.py --role repeater
+git clone https://github.com/livitup/n3ocq-dmr-repeater.git
+cd n3ocq-dmr-repeater
+sudo python3 install.py --role hotspot
 ```
 
-Roles supported:
-- `vps`
-- `repeater`
-- `hotspot`
+This installs DMRGateway and applies appropriate config templates.
+
+To use a config file:
+```bash
+sudo python3 install.py --role hotspot --config hotspot.cfg
+```
 
 ---
 
-## ❓ Support
+## 🧠 Tips
 
-For questions or issues, open an [Issue](https://github.com/livitup/n3ocq-dmr-repeater/issues) or contact N3OCQ.
+- All generated config files are backed up with timestamps before overwrite
+- Logs are stored in `/var/log/bootstrap.log`
+- You can safely rerun the script with an updated config file to redeploy
+- `.cfg` files allow non-interactive automated installs (see example above)
 
 ---
 
+## 🔎 Operational Notes
+
+- `.cfg` files can be used for non-interactive installs
+- `install.py` and `bootstrap.sh` both accept `--config filename.cfg`
+- `install.py` also accepts `--role` via CLI with values:
+  - `repeater`
+  - `hotspot`
+  - `vps`
+- Systemd services installed and started:
+  - **Repeater**: `dmrgateway`
+  - **Hotspot**: `dmrgateway`
+  - **VPS**: `hblink3`, `parrot`
+- Config file overwrites create a `.bak.YYYYMMDD-HHMMSS` backup
+- Networking setup is selectable during bootstrap:
+  - Wired (DHCP or static)
+  - Wi-Fi (SSID + password)
+
+---
+
+## 📁 Repo Structure
+
+```
+.
+├── bootstrap.sh
+├── install.py
+├── templates/
+│   ├── hblink.cfg.template
+│   ├── parrot.cfg.template
+│   ├── dmrgateway.service.template
+│   └── ...
+├── operations.md
+├── README.md
+└── *.cfg  # Example config files for each install type
+```
+
+---
+
+For issues or contributions, visit: https://github.com/livitup/n3ocq-dmr-repeater

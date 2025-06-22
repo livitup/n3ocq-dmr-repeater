@@ -1,78 +1,140 @@
-# HBLink3 Deployment Operator Field Guide
+# DMR System Operations Guide
+
+This document outlines how to operate, manage, and troubleshoot the components installed by the `n3ocq-dmr-repeater` project. It applies to repeater, hotspot, and VPS-based configurations.
 
 ---
 
-## 🔧 VPS (HBLink3 + Parrot)
+## 🚦 System Roles and Services
 
-| Task | Command |
-|------|---------|
-| Check service status | `systemctl status hblink3.service parrot.service` |
-| Start/stop services | `systemctl start|stop hblink3.service` |
-| View logs | `journalctl -u hblink3.service -f` |
-| Full log file | `/var/log/hblink/hblink.log` |
-| Reload config | `systemctl restart hblink3.service` |
-| Config files | `/opt/hblink/hblink.cfg`, `parrot.cfg` |
-| Update config | Edit template → regenerate or push manually |
-| Manage repo | Git commit all changes for backup/versioning |
+| Role     | Services Installed         | Components Included                  |
+|----------|-----------------------------|--------------------------------------|
+| Repeater | `dmrgateway.service`       | DMRGateway, MMDVMHost                |
+| Hotspot  | `dmrgateway.service`       | DMRGateway (WPSD)                    |
+| VPS      | `hblink3`, `parrot.service`| HBLink3 + Parrot server              |
 
 ---
 
-## 🔧 Repeater (Pi-Star w/ STM32-DVM)
+## ⚙️ Config File Usage
 
-| Task | Command |
-|------|---------|
-| Check DMRGateway | `systemctl status dmrgateway.service` |
-| View logs | `journalctl -u dmrgateway.service -f` |
-| Config files | `/etc/dmrgateway/config.ini`, `/etc/mmdvmhost/config.ini` |
-| Restart DMRGateway | `systemctl restart dmrgateway.service` |
-| **Don't** use Pi-Star dashboard for DMRGateway | ✅ Prevents config override |
-| Update | Use updated templates + re-run installer or deploy manually |
+Each system role can be installed using a `.cfg` file to provide required values non-interactively.
 
----
+### Supported Keys by Role
 
-## 🔧 Hotspot (WPSD)
+#### Repeater (`repeater.cfg`)
+```
+[DEFAULT]
+REPEATER_ID = 314601
+BM_PASSWORD = my_secure_password
+HBLINK_IP = 192.168.5.100
+```
 
-| Task | Command |
-|------|---------|
-| Check DMRGateway | `systemctl status dmrgateway.service` |
-| View logs | `journalctl -u dmrgateway.service -f` |
-| Config files | `/etc/dmrgateway/config.ini`, `/etc/mmdvmhost/config.ini` |
-| Restart DMRGateway | `systemctl restart dmrgateway.service` |
-| Web UI | WPSD does not override systemd-controlled DMRGateway |
-| Update | Use templates or re-run `install.py` with correct role |
+#### Hotspot (`hotspot.cfg`)
+```
+[DEFAULT]
+HOTSPOT_ID = 319280601
+BM_PASSWORD = my_secure_password
+HBLINK_IP = 192.168.5.100
+```
 
----
+#### VPS (`vps.cfg`)
+```
+[DEFAULT]
+REPEATER_ID = 314601
+HOTSPOT_ID = 319280601
+BM_PASSWORD = my_secure_password
+PARROT_ID = 9999
+```
 
-## 📡 Talkgroup Routing Notes
+### Command-Line Examples
 
-- Use **TG 9999** for the Parrot server (or the Parrot ID you specified)
-- Routing is handled by:
-  - Your **radio codeplug** (where you transmit TG 9999)
-  - HBLink3's **peer list** and **TG mapping**
-- Repeater/Hotspot only need to pass the traffic to HBLink3; they do **not** need to know the Parrot ID
-- Other talkgroups can be routed by TGRewrite and HBLink3 rules
+```bash
+sudo python3 install.py --role repeater --config repeater.cfg
+sudo python3 install.py --role vps --config vps.cfg
+./bootstrap.sh --config repeater.cfg
+```
 
----
-
-## 🔒 Security Tips
-
-| Task | Recommendation |
-|------|----------------|
-| SSH Access | Use key auth only, disable password login |
-| Firewall | Lock HBLink3 UDP port to repeater IPs |
-| Fail2Ban | Recommended on VPS |
-| Monitor logs | Use `journalctl -u <service>` for real-time logs |
-| Backup | Commit to GitHub regularly after config changes |
+If a `.cfg` file is provided:
+- Prompts are skipped
+- Template variables are auto-substituted
+- Existing config files are backed up with timestamped `.bak` extensions
 
 ---
 
-## 🧠 Best Practices
+## 🛠 Manual Service Control
 
-- Keep **template files** as your master configs
-- Never manually edit live configs without also updating the repo
-- Commit and push changes after any deployment
+### Repeater or Hotspot (DMRGateway)
+```bash
+sudo systemctl restart dmrgateway.service
+sudo systemctl status dmrgateway.service
+```
+
+### VPS
+```bash
+sudo systemctl restart hblink3.service
+sudo systemctl restart parrot.service
+sudo systemctl status hblink3.service
+sudo systemctl status parrot.service
+```
 
 ---
 
-✅ For questions or further automation, run `install.py` again!
+## 🧪 Log Locations
 
+| Component       | Path                     |
+|----------------|--------------------------|
+| Bootstrap log  | `/var/log/bootstrap.log` |
+| HBLink3 logs   | `/var/log/hblink/`       |
+| Parrot logs    | `/var/log/hblink/`       |
+
+---
+
+## 📡 Network Setup (bootstrap.sh)
+
+On Raspberry Pi installations, the script will prompt for network config:
+- Wired (DHCP)
+- Wired (Static)
+- Wi-Fi (SSID + password)
+
+The script writes `/etc/dhcpcd.conf` or `/etc/wpa_supplicant/wpa_supplicant.conf` accordingly.
+
+---
+
+## 🧹 Cleanup & Reinstall
+
+To rerun installation safely:
+1. Update your `.cfg` with new settings
+2. Rerun either `install.py` or `bootstrap.sh`
+3. All modified config files are backed up before overwriting
+
+---
+
+## 📁 Key Directories
+
+| Path                     | Purpose                          |
+|--------------------------|----------------------------------|
+| `/opt/hblink/`           | HBLink3 installation directory   |
+| `/opt/hblink/venv/`      | Python virtual environment       |
+| `/usr/local/bin/DMRGateway` | Compiled DMRGateway binary    |
+
+---
+
+## 🧩 Template Rendering
+
+The following templates are filled during install:
+- `templates/hblink.cfg.template`
+- `templates/parrot.cfg.template`
+- `templates/mmdvmhost_*.ini.template`
+- `templates/dmrgateway_*.ini.template`
+
+---
+
+## 🗒 Notes
+
+- All system services are managed via systemd
+- Existing config files are backed up with timestamps
+- Configuration and service start are logged
+- Public repo defaults do not include personal credentials
+
+---
+
+For help or questions, visit https://github.com/livitup/n3ocq-dmr-repeater

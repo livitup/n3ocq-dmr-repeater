@@ -1,15 +1,36 @@
-i#!/bin/bash
+#!/bin/bash
 
 set -e
 
 # === CONFIGURATION ===
 REPO_URL="https://github.com/livitup/n3ocq-dmr-repeater.git"
 CLONE_DIR="$HOME/n3ocq-dmr-repeater"
+ROLE="2"  # Default to Repeater
 LOG_FILE="/var/log/bootstrap.log"
+CONFIG_FILE=""
 
 # === FUNCTIONS ===
 function say() {
   echo -e "\033[1;32m[BOOTSTRAP]\033[0m $1" | tee -a "$LOG_FILE"
+}
+
+function parse_args() {
+  while [[ "$#" -gt 0 ]]; do
+    case $1 in
+      --role)
+        ROLE="$2"
+        shift 2
+        ;;
+      --config)
+        CONFIG_FILE="$2"
+        shift 2
+        ;;
+      *)
+        echo "Unknown option: $1"
+        exit 1
+        ;;
+    esac
+  done
 }
 
 function configure_networking() {
@@ -24,7 +45,7 @@ function configure_networking() {
     1)
       say "Using wired DHCP (default)."
       sudo rm -f /etc/dhcpcd.conf
-      echo -e "interface eth0\n  fallback static_eth0" | sudo tee -a /etc/dhcpcd.conf >> "$LOG_FILE"
+      echo -e "interface eth0\n  fallback static_eth0" | sudo tee /etc/dhcpcd.conf >> "$LOG_FILE"
       ;;
 
     2)
@@ -69,11 +90,13 @@ function install_dmrgateway() {
   say "DMRGateway installed to /usr/local/bin/DMRGateway"
 }
 
+# === MAIN ===
 mkdir -p /var/log
-# Reset log file if it exists
 sudo rm -f "$LOG_FILE"
 sudo touch "$LOG_FILE"
 sudo chown $(whoami):$(whoami) "$LOG_FILE"
+
+parse_args "$@"
 
 say "Updating package index and installing dependencies..."
 sudo apt update | tee -a "$LOG_FILE"
@@ -97,21 +120,24 @@ fi
 
 cd "$CLONE_DIR"
 
-say "Running install.py with --role=repeater..."
-sudo python3 install.py --role repeater | tee -a "$LOG_FILE"
+if [[ -n "$CONFIG_FILE" ]]; then
+  say "Running install.py with config: $CONFIG_FILE"
+  sudo python3 install.py --role repeater --config "$CONFIG_FILE" | tee -a "$LOG_FILE"
+else
+  say "Running install.py with interactive mode"
+  echo -e "$ROLE\n" | sudo python3 install.py | tee -a "$LOG_FILE"
+fi
 
 say "Enabling and starting DMRGateway service..."
 sudo systemctl enable dmrgateway.service | tee -a "$LOG_FILE"
 sudo systemctl restart dmrgateway.service | tee -a "$LOG_FILE"
-say "DMRGateway service started successfully."
-say "Checking status of DMRGateway service..."
+say "Checking DMRGateway status..."
 if systemctl is-active --quiet dmrgateway.service; then
   say "✅ DMRGateway service is running."
 else
-  say "❌ DMRGateway service is NOT running. Please review the log at $LOG_FILE"
+  say "❌ DMRGateway service is NOT running. Check $LOG_FILE"
 fi
 
 say "Setup complete. You may reboot if desired."
 echo -e "\nTo start services manually:\n  sudo systemctl restart dmrgateway.service" | tee -a "$LOG_FILE"
-echo -e "\n✅ Repeater setup ready." | tee -a "$LOG_FILE"
-
+echo -e "\n✅ Repeater setup complete." | tee -a "$LOG_FILE"
