@@ -20,8 +20,8 @@ This project automates the installation and configuration of a DMR repeater, hot
 
 ```bash
 curl -O https://raw.githubusercontent.com/livitup/n3ocq-dmr-repeater/main/bootstrap_pi_repeater.sh
-chmod +x bootstrap.sh
-./bootstrap.sh
+chmod +x bootstrap_pi_repeater.sh
+./bootstrap_pi_repeater.sh
 ```
 
 This will:
