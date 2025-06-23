@@ -1,13 +1,12 @@
 [Unit]
-Description=HBLink3 Parrot (Playback Server)
+Description=Parrot Service
 After=network.target
 
 [Service]
+ExecStart=/opt/hblink/venv/bin/python3 /opt/hblink/parrot.py -c /opt/hblink/parrot.cfg
 WorkingDirectory=/opt/hblink
-ExecStart=/opt/hblink/venv/bin/python3 playback.py -c parrot.cfg
-Restart=on-failure
-RestartSec=3
+Restart=always
+User=root
 
 [Install]
 WantedBy=multi-user.target
-

@@ -1,3 +1,20 @@
-[Network 1]
-Address=${HBLINK_IP}
+[General]
+Callsign=REPEATER
 Id=${REPEATER_ID}
+Timeout=180
+Duplex=1
+
+[Info]
+RXFrequency=446000000
+TXFrequency=441000000
+
+[Log]
+FilePath=/var/log/mmdvm/
+FileRoot=MMDVM
+DisplayLevel=2
+FileLevel=2
+
+[DMR]
+Enable=1
+Id=${REPEATER_ID}
+ColorCode=1

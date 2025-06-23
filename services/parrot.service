@@ -1,2 +1,14 @@
+[Unit]
+Description=Parrot Server
+After=network.target
+
 [Service]
-ExecStart=/usr/bin/python3 /opt/hblink/parrot.py
+ExecStart=/opt/hblink/venv/bin/python3 /opt/hblink/parrot.py
+WorkingDirectory=/opt/hblink
+Restart=on-failure
+User=root
+StandardOutput=append:/var/log/hblink/parrot.log
+StandardError=append:/var/log/hblink/parrot.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1,2 +1,14 @@
+[Unit]
+Description=HBLink3 Server
+After=network.target
+
 [Service]
-ExecStart=/usr/bin/python3 /opt/hblink/hblink.py
+ExecStart=/opt/hblink/venv/bin/python3 /opt/hblink/hblink.py
+WorkingDirectory=/opt/hblink
+Restart=on-failure
+User=root
+StandardOutput=append:/var/log/hblink/hblink3.log
+StandardError=append:/var/log/hblink/hblink3.log
+
+[Install]
+WantedBy=multi-user.target

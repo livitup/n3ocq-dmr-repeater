@@ -1,2 +1,1 @@
-# README for DMR Repeater Setup Tools
-Instructions...
+# Contents of README.md
