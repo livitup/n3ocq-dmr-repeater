@@ -4,137 +4,138 @@ import os
 import sys
 import shutil
 import configparser
+from pathlib import Path
 from datetime import datetime
 
-TEMPLATES_DIR = "templates"
-RUNTIME_DIR = "runtime"
+SCRIPT_DIR = Path(__file__).resolve().parent
+TEMPLATE_DIR = SCRIPT_DIR / "templates"
 
-def say(msg):
-    print(f"\033[92m[INSTALL]\033[0m {msg}")
+def log(msg):
+    print(f"[INSTALL] {msg}")
 
-def backup_file(filepath):
-    if os.path.exists(filepath):
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup = f"{filepath}.{timestamp}.bak"
-        shutil.copy2(filepath, backup)
-        say(f"Backed up existing file to {backup}")
+def load_config(path):
+    log(f"Loading config file: {path}")
+    config = configparser.ConfigParser()
+    config.read(path)
+    return config['DEFAULT']
 
-def render_template(template_name, output_path, substitutions):
-    with open(os.path.join(TEMPLATES_DIR, template_name), "r") as f:
+def render_template(template_name, output_path, context):
+    template_path = TEMPLATE_DIR / template_name
+    if not template_path.exists():
+        raise FileNotFoundError(f"Missing template: {template_path}")
+    
+    with open(template_path, "r") as f:
         content = f.read()
 
-    for key, value in substitutions.items():
-        content = content.replace(f"{{{{ {key} }}}}", value)
+    for key, value in context.items():
+        content = content.replace(f"{{{{{key}}}}}", str(value))
 
-    backup_file(output_path)
+    output_path = Path(output_path)
+    if output_path.exists():
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = output_path.with_suffix(f".bak_{timestamp}")
+        shutil.copy(output_path, backup_path)
+        log(f"Backed up existing file to {backup_path}")
 
     with open(output_path, "w") as f:
         f.write(content)
-    say(f"Rendered {output_path}")
 
-def load_config(config_path):
-    config = configparser.ConfigParser()
-    config.read(config_path)
-    return config["DEFAULT"]
+    log(f"Wrote rendered file: {output_path}")
 
-def prompt_input(prompt, key, config=None):
-    if config and key in config:
-        return config[key]
-    return input(prompt)
+def install_repeater(cfg):
+    log("Installing for role: repeater")
+    context = {
+        "REPEATER_ID": cfg.get("REPEATER_ID", ""),
+        "BM_PASSWORD": cfg.get("BM_PASSWORD", ""),
+        "HBLINK_IP": cfg.get("HBLINK_IP", "")
+    }
 
-def get_subs(role, config):
-    subs = {}
+    log("Rendering DMRGateway config...")
+    render_template("dmrgateway_repeater.ini.template", "/etc/DMRGateway.ini", context)
 
-    if role == "repeater":
-        subs["REPEATER_ID"] = prompt_input("Enter Repeater DMR ID: ", "REPEATER_ID", config)
-        subs["BM_PASSWORD"] = prompt_input("Enter Brandmeister Password: ", "BM_PASSWORD", config)
-        subs["HBLINK_IP"] = prompt_input("Enter HBLink Server IP: ", "HBLINK_IP", config)
+    log("Rendering MMDVMHost config...")
+    render_template("mmdvmhost_repeater.ini.template", "/etc/MMDVM.ini", context)
 
-    elif role == "hotspot":
-        subs["HOTSPOT_ID"] = prompt_input("Enter Hotspot DMR ID: ", "HOTSPOT_ID", config)
-        subs["BM_PASSWORD"] = prompt_input("Enter Brandmeister Password: ", "BM_PASSWORD", config)
-        subs["HBLINK_IP"] = prompt_input("Enter HBLink Server IP: ", "HBLINK_IP", config)
+    log("Rendering systemd service...")
+    render_template("dmrgateway.service.template", "/etc/systemd/system/dmrgateway.service", context)
 
-    elif role == "vps":
-        subs["REPEATER_ID"] = prompt_input("Enter Repeater DMR ID: ", "REPEATER_ID", config)
-        subs["HOTSPOT_ID"] = prompt_input("Enter Hotspot DMR ID: ", "HOTSPOT_ID", config)
-        subs["BM_PASSWORD"] = prompt_input("Enter Brandmeister Password: ", "BM_PASSWORD", config)
-        subs["PARROT_ID"] = prompt_input("Enter Parrot Talkgroup ID: ", "PARROT_ID", config)
-    return subs
+def install_hotspot(cfg):
+    log("Installing for role: hotspot")
+    context = {
+        "HOTSPOT_ID": cfg.get("HOTSPOT_ID", ""),
+        "BM_PASSWORD": cfg.get("BM_PASSWORD", ""),
+        "HBLINK_IP": cfg.get("HBLINK_IP", "")
+    }
 
-def render_files(role, subs):
-    os.makedirs(RUNTIME_DIR, exist_ok=True)
+    log("Rendering DMRGateway config...")
+    render_template("dmrgateway_hotspot.ini.template", "/etc/DMRGateway.ini", context)
 
-    if role == "repeater":
-        render_template("dmrgateway_repeater.ini.template", "/etc/DMRGateway.ini", subs)
-        render_template("mmdvmhost_repeater.ini.template", "/etc/MMDVM.ini", subs)
-        render_template("dmrgateway.service.template", "/etc/systemd/system/dmrgateway.service", subs)
+    log("Rendering MMDVMHost config...")
+    render_template("mmdvmhost_hotspot.ini.template", "/etc/MMDVM.ini", context)
 
-    elif role == "hotspot":
-        render_template("dmrgateway_hotspot.ini.template", "/etc/DMRGateway.ini", subs)
-        render_template("mmdvmhost_hotspot.ini.template", "/etc/MMDVM.ini", subs)
-        render_template("dmrgateway.service.template", "/etc/systemd/system/dmrgateway.service", subs)
+    log("Rendering systemd service...")
+    render_template("dmrgateway.service.template", "/etc/systemd/system/dmrgateway.service", context)
 
-    elif role == "vps":
-        render_template("hblink.cfg.template", "/opt/hblink/hblink.cfg", subs)
-        render_template("parrot.config.template", "/opt/hblink/parrot.cfg", subs)
-        render_template("hblink3.service.template", "/etc/systemd/system/hblink3.service", subs)
-        render_template("parrot.service.template", "/etc/systemd/system/parrot.service", subs)
+def install_vps(cfg):
+    log("Installing for role: vps")
+    context = {
+        "REPEATER_ID": cfg.get("REPEATER_ID", ""),
+        "HOTSPOT_ID": cfg.get("HOTSPOT_ID", ""),
+        "BM_PASSWORD": cfg.get("BM_PASSWORD", ""),
+        "PARROT_ID": cfg.get("PARROT_ID", "")
+    }
+
+    log("Rendering HBLink config...")
+    render_template("hblink.cfg.template", "/opt/hblink/hblink.cfg", context)
+
+    log("Rendering Parrot config...")
+    render_template("parrot.cfg.template", "/opt/hblink/parrot.cfg", context)
+
+    log("Rendering systemd services...")
+    render_template("hblink3.service.template", "/etc/systemd/system/hblink3.service", context)
+    render_template("parrot.service.template", "/etc/systemd/system/parrot.service", context)
 
 def main():
-    role = None
-    config_file = None
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print("Usage: install.py --role [repeater|hotspot|vps] [--config path_to_cfg]")
+        sys.exit(0)
 
-    # Parse CLI args
-    args = sys.argv[1:]
-    if "--role" in args:
-        role = args[args.index("--role") + 1].lower()
-    if "--config" in args:
-        config_file = args[args.index("--config") + 1]
+    role = None
+    cfg_path = None
+    if "--role" in sys.argv:
+        role_index = sys.argv.index("--role") + 1
+        if role_index < len(sys.argv):
+            role = sys.argv[role_index].lower()
+
+    if "--config" in sys.argv:
+        cfg_index = sys.argv.index("--config") + 1
+        if cfg_index < len(sys.argv):
+            cfg_path = sys.argv[cfg_index]
 
     if not role:
-        print("What type of system are you setting up?")
-        print("  1) Repeater")
-        print("  2) Hotspot")
-        print("  3) VPS (HBLink3 + Parrot)")
-        choice = input("Enter number [1-3]: ")
-        role = {"1": "repeater", "2": "hotspot", "3": "vps"}.get(choice, None)
+        print("Please specify a role: repeater, hotspot, or vps")
+        role = input("Enter role: ").strip().lower()
 
-    if role not in ("repeater", "hotspot", "vps"):
-        say("❌ Invalid role selected. Exiting.")
+    if not cfg_path:
+        cfg_path = input("Enter path to .cfg file (or leave blank): ").strip()
+        if not cfg_path:
+            cfg_path = None
+
+    cfg = {}
+    if cfg_path:
+        cfg = load_config(cfg_path)
+
+    if role == "repeater":
+        install_repeater(cfg)
+    elif role == "hotspot":
+        install_hotspot(cfg)
+    elif role == "vps":
+        install_vps(cfg)
+    else:
+        log(f"Unknown role: {role}")
         sys.exit(1)
 
-    config = load_config(config_file) if config_file else None
-    subs = get_subs(role, config)
-    render_files(role, subs)
-
-    if role == "vps":
-        os.makedirs("/var/log/hblink", exist_ok=True)
-        os.chdir("/opt/hblink")
-
-        os.system("systemctl stop hblink3.service || true")
-        os.system("systemctl stop parrot.service || true")
-        os.system("systemctl enable hblink3.service")
-        os.system("systemctl enable parrot.service")
-        os.system("systemctl restart hblink3.service")
-        os.system("systemctl restart parrot.service")
-
-        if os.system("systemctl is-active --quiet hblink3.service") == 0:
-            say("✅ hblink3.service is running.")
-        else:
-            say("❌ hblink3.service failed. Check /var/log/hblink/ for details.")
-
-    else:
-        os.system("systemctl stop dmrgateway.service || true")
-        os.system("systemctl enable dmrgateway.service")
-        os.system("systemctl restart dmrgateway.service")
-
-        if os.system("systemctl is-active --quiet dmrgateway.service") == 0:
-            say("✅ dmrgateway.service is running.")
-        else:
-            say("❌ dmrgateway.service failed. Check logs for details.")
-
-    say("✅ Install complete.")
+    log("Installation complete.")
 
 if __name__ == "__main__":
     main()
