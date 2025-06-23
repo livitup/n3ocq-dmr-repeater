@@ -4,6 +4,7 @@ import os
 import sys
 import shutil
 import configparser
+import subprocess
 from pathlib import Path
 from datetime import datetime
 
@@ -50,15 +51,19 @@ def install_repeater(cfg):
         "HBLINK_IP": cfg.get("HBLINK_IP", "")
     }
 
-    log("Rendering DMRGateway config...")
-    render_template("dmrgateway_repeater.ini.template", "/etc/DMRGateway.ini", context)
-
-    log("Rendering MMDVMHost config...")
-    render_template("mmdvmhost_repeater.ini.template", "/etc/MMDVM.ini", context)
-
-    log("Rendering systemd service...")
+    log("Rendering systemd services...")
     render_template("dmrgateway.service.template", "/etc/systemd/system/dmrgateway.service", context)
     render_template("mmdvmhost.service.template", "/etc/systemd/system/mmdvmhost.service", context)
+    render_template("dmrgateway_repeater.ini.template", "/etc/DMRGateway.ini", context)
+    render_template("mmdvmhost_repeater.ini.template", "/etc/MMDVM.ini", context)
+
+    log("Starting services...")
+    subprocess.run(["systemctl", "daemon-reload"], check=True)
+    subprocess.run(["systemctl", "enable", "mmdvmhost.service"], check=True)
+    subprocess.run(["systemctl", "restart", "mmdvmhost.service"], check=True)
+    subprocess.run(["systemctl", "enable", "dmrgateway.service"], check=True)
+    subprocess.run(["systemctl", "restart", "dmrgateway.service"], check=True)
+
 
 def install_hotspot(cfg):
     log("Installing for role: hotspot")
@@ -78,6 +83,14 @@ def install_hotspot(cfg):
     render_template("dmrgateway.service.template", "/etc/systemd/system/dmrgateway.service", context)
     render_template("mmdvmhost.service.template", "/etc/systemd/system/mmdvmhost.service", context)
 
+    log("Starting services...")
+    subprocess.run(["systemctl", "daemon-reload"], check=True)
+    subprocess.run(["systemctl", "enable", "dmrgateway.service"], check=True)
+    subprocess.run(["systemctl", "restart", "dmrgateway.service"], check=True)
+    subprocess.run(["systemctl", "enable", "mmdvmhost.service"], check=True)
+    subprocess.run(["systemctl", "restart", "mmdvmhost.service"], check=True)
+
+
 def install_vps(cfg):
     log("Installing for role: vps")
     context = {
@@ -96,6 +109,13 @@ def install_vps(cfg):
     log("Rendering systemd services...")
     render_template("hblink3.service.template", "/etc/systemd/system/hblink3.service", context)
     render_template("parrot.service.template", "/etc/systemd/system/parrot.service", context)
+
+    log("Starting services...")
+    subprocess.run(["systemctl", "daemon-reload"], check=True)
+    subprocess.run(["systemctl", "enable", "hblink3.service"], check=True)
+    subprocess.run(["systemctl", "restart", "hblink3.service"], check=True)
+    subprocess.run(["systemctl", "enable", "parrot.service"], check=True)
+    subprocess.run(["systemctl", "restart", "parrot.service"], check=True)
 
 def main():
     if "--help" in sys.argv or "-h" in sys.argv:

@@ -82,6 +82,19 @@ install_dmrgateway() {
   say "DMRGateway installed to /usr/local/bin/DMRGateway"
 }
 
+function install_mmdvmhost() {
+  say "Installing MMDVMHost from source..."
+  if [ ! -d "$HOME/MMDVMHost" ]; then
+    git clone https://github.com/g4klx/MMDVMHost.git "$HOME/MMDVMHost" | tee -a "$LOG_FILE"
+  else
+    say "MMDVMHost source already exists. Skipping clone."
+  fi
+  cd "$HOME/MMDVMHost"
+  make -j$(nproc) | tee -a "$LOG_FILE"
+  sudo cp MMDVMHost /usr/local/bin/
+  say "MMDVMHost installed to /usr/local/bin/MMDVMHost"
+}
+
 run_python_installer() {
   say "Cloning dmr-repeater-setup-tools repository..."
   if [ ! -d "$CLONE_DIR" ]; then
@@ -126,6 +139,7 @@ sudo chown "$(whoami):$(whoami)" "$LOG_FILE"
 configure_networking
 install_dependencies
 install_dmrgateway
+install_mmdvmhost
 run_python_installer
 start_services
 
