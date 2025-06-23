@@ -1,0 +1,12 @@
+[Unit]
+Description=MMDVMHost Service
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/MMDVMHost /etc/MMDVM.ini
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
+
