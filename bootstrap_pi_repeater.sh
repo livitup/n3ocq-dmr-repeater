@@ -1,124 +1,152 @@
-#!/bin/bash
+#!/usr/bin/env python3
 
-set -e
+from pathlib import Path
+import os
+import shutil
+import subprocess
+import sys
+import configparser
+from datetime import datetime
+from string import Template
 
-# === CONFIGURATION ===
-REPO_URL="https://github.com/livitup/n3ocq-dmr-repeater.git"
-CLONE_DIR="$HOME/n3ocq-dmr-repeater"
-ROLE="2"  # 2 = Repeater
-LOG_FILE="/var/log/bootstrap.log"
-CONFIG_FILE="/etc/dmr/setup.cfg"
-
-# === FUNCTIONS ===
-function say() {
-  echo -e "\033[1;32m[BOOTSTRAP]\033[0m $1" | tee -a "$LOG_FILE"
+# === Constants ===
+TEMPLATE_DIR = "templates"
+OUTPUT_DIR = "/etc"
+BACKUP_SUFFIX = datetime.now().strftime("%Y%m%d%H%M%S")
+CONFIG_KEYS = {
+    "repeater": ["REPEATER_ID", "BM_PASSWORD", "HBLINK_IP"],
+    "hotspot": ["HOTSPOT_ID", "BM_PASSWORD", "HBLINK_IP"],
+    "vps": ["REPEATER_ID", "HOTSPOT_ID", "BM_PASSWORD", "PARROT_ID"],
 }
 
-function configure_networking() {
-  echo "" | tee -a "$LOG_FILE"
-  echo "Select network configuration mode:" | tee -a "$LOG_FILE"
-  echo "  1) Wired (DHCP)" | tee -a "$LOG_FILE"
-  echo "  2) Wired (Static IP)" | tee -a "$LOG_FILE"
-  echo "  3) Wi-Fi (DHCP)" | tee -a "$LOG_FILE"
-  read -p "Enter choice [1-3]: " net_choice
+# === Helper Functions ===
 
-  case $net_choice in
-    1)
-      say "Using wired DHCP (default)."
-      sudo rm -f /etc/dhcpcd.conf
-      echo -e "interface eth0\n  fallback static_eth0" | sudo tee /etc/dhcpcd.conf >> "$LOG_FILE"
-      ;;
+def say(msg):
+    print(f"\033[1;34m[INSTALL]\033[0m {msg}")
 
-    2)
-      read -p "Enter static IP address (e.g. 192.168.1.100/24): " static_ip
-      read -p "Enter gateway (e.g. 192.168.1.1): " gateway
-      say "Configuring wired static IP..."
-      sudo bash -c "cat > /etc/dhcpcd.conf" <<EOF
-interface eth0
-  static ip_address=$static_ip
-  static routers=$gateway
-  static domain_name_servers=8.8.8.8 1.1.1.1
-EOF
-      ;;
+def render_template(template_name, output_path, context):
+    with open(Path(TEMPLATE_DIR) / template_name, "r") as f:
+        src = Template(f.read())
+        result = src.safe_substitute(context)
 
-    3)
-      read -p "Enter Wi-Fi SSID: " ssid
-      read -sp "Enter Wi-Fi Password: " password
-      echo ""
-      say "Configuring Wi-Fi..."
-      sudo bash -c "wpa_passphrase '$ssid' '$password' > /etc/wpa_supplicant/wpa_supplicant.conf"
-      sudo rfkill unblock wifi
-      sudo systemctl enable wpa_supplicant
-      sudo systemctl restart wpa_supplicant
-      ;;
+    # Backup existing file if present
+    if os.path.exists(output_path):
+        backup_path = f"{output_path}.{BACKUP_SUFFIX}.bak"
+        shutil.copy2(output_path, backup_path)
+        say(f"Backed up existing {output_path} to {backup_path}")
 
-    *)
-      echo "Invalid selection. Defaulting to wired DHCP." | tee -a "$LOG_FILE"
-      ;;
-  esac
-}
+    with open(output_path, "w") as f:
+        f.write(result)
+        say(f"Wrote rendered config to {output_path}")
 
-function install_dmrgateway() {
-  say "Installing DMRGateway from source..."
-  if [ ! -d "$HOME/DMRGateway" ]; then
-    git clone https://github.com/g4klx/DMRGateway.git "$HOME/DMRGateway" | tee -a "$LOG_FILE"
-  else
-    say "DMRGateway source already exists. Skipping clone."
-  fi
-  cd "$HOME/DMRGateway"
-  make -j$(nproc) | tee -a "$LOG_FILE"
-  sudo cp DMRGateway /usr/local/bin/
-  say "DMRGateway installed to /usr/local/bin/DMRGateway"
-}
+def ensure_root():
+    if os.geteuid() != 0:
+        say("This script must be run as root.")
+        sys.exit(1)
 
-# Prepare log
-mkdir -p /var/log
-sudo rm -f "$LOG_FILE"
-sudo touch "$LOG_FILE"
-sudo chown $(whoami):$(whoami) "$LOG_FILE"
+def load_config(config_path):
+    config = configparser.ConfigParser()
+    config.read(config_path)
+    return config["DEFAULT"]
 
-say "Updating package index and installing dependencies..."
-sudo apt update | tee -a "$LOG_FILE"
-sudo apt full-upgrade -y | tee -a "$LOG_FILE"
-sudo apt install -y \
-  git \
-  python3 python3-venv python3-pip \
-  cmake libusb-1.0-0-dev \
-  libwxgtk3.2-dev libasound2-dev libudev-dev \
-  libpulse-dev libfftw3-dev libgps-dev libi2c-dev \
-  wireless-tools wpasupplicant net-tools | tee -a "$LOG_FILE"
+def install_repeater(cfg):
+    context = {
+        "REPEATER_ID": cfg.get("REPEATER_ID", ""),
+        "BM_PASSWORD": cfg.get("BM_PASSWORD", ""),
+        "HBLINK_IP": cfg.get("HBLINK_IP", "")
+    }
 
-configure_networking
-install_dmrgateway
+    say("Rendering DMRGateway config...")
+    render_template("dmrgateway_repeater.ini.template", "/etc/DMRGateway.ini", context)
 
-say "Cloning dmr-repeater-setup-tools repository..."
-if [ ! -d "$CLONE_DIR" ]; then
-  git clone "$REPO_URL" "$CLONE_DIR" | tee -a "$LOG_FILE"
-else
-  say "Repo already cloned. Skipping."
-fi
+    say("Creating systemd service for DMRGateway...")
+    shutil.copy2("services/dmrgateway.service", "/etc/systemd/system/dmrgateway.service")
+    subprocess.run(["systemctl", "daemon-reexec"], check=True)
+    subprocess.run(["systemctl", "enable", "dmrgateway.service"], check=True)
+    subprocess.run(["systemctl", "restart", "dmrgateway.service"], check=True)
 
-cd "$CLONE_DIR"
+def install_hotspot(cfg):
+    context = {
+        "HOTSPOT_ID": cfg.get("HOTSPOT_ID", ""),
+        "BM_PASSWORD": cfg.get("BM_PASSWORD", ""),
+        "HBLINK_IP": cfg.get("HBLINK_IP", "")
+    }
 
-if [ -f "$CONFIG_FILE" ]; then
-  say "Using config file at $CONFIG_FILE for installation..."
-  sudo python3 install.py --role repeater --config "$CONFIG_FILE" | tee -a "$LOG_FILE"
-else
-  say "No config file found. Proceeding with default role install (role=$ROLE)..."
-  echo -e "$ROLE\n" | sudo python3 install.py | tee -a "$LOG_FILE"
-fi
+    say("Rendering DMRGateway config...")
+    render_template("dmrgateway_hotspot.ini.template", "/etc/DMRGateway.ini", context)
 
-say "Enabling and starting DMRGateway service..."
-sudo systemctl enable dmrgateway.service | tee -a "$LOG_FILE"
-sudo systemctl restart dmrgateway.service | tee -a "$LOG_FILE"
+    say("Creating systemd service for DMRGateway...")
+    shutil.copy2("services/dmrgateway.service", "/etc/systemd/system/dmrgateway.service")
+    subprocess.run(["systemctl", "daemon-reexec"], check=True)
+    subprocess.run(["systemctl", "enable", "dmrgateway.service"], check=True)
+    subprocess.run(["systemctl", "restart", "dmrgateway.service"], check=True)
 
-say "Checking status of DMRGateway service..."
-if systemctl is-active --quiet dmrgateway.service; then
-  say "✅ DMRGateway service is running."
-else
-  say "❌ DMRGateway service is NOT running. Please review the log at $LOG_FILE"
-fi
+def install_vps(cfg):
+    context = {
+        "REPEATER_ID": cfg.get("REPEATER_ID", ""),
+        "HOTSPOT_ID": cfg.get("HOTSPOT_ID", ""),
+        "BM_PASSWORD": cfg.get("BM_PASSWORD", ""),
+        "PARROT_ID": cfg.get("PARROT_ID", "")
+    }
 
-say "Setup complete. You may reboot if desired."
-echo -e "\nTo start services manually:\n  sudo systemctl restart dmrgateway.service" | tee -a "$LOG_FILE"
-echo -e "\n✅ Repeater setup ready." | tee -a "$LOG_FILE"
+    say("Rendering HBLink and Parrot configs...")
+    render_template("hblink.cfg.template", "/opt/hblink/hblink.cfg", context)
+    render_template("parrot.cfg.template", "/opt/hblink/parrot.cfg", context)
+
+    say("Installing systemd services for VPS (hblink3/parrot)...")
+    shutil.copy2("services/hblink3.service", "/etc/systemd/system/hblink3.service")
+    shutil.copy2("services/parrot.service", "/etc/systemd/system/parrot.service")
+
+    subprocess.run(["systemctl", "daemon-reexec"], check=True)
+    subprocess.run(["systemctl", "enable", "hblink3.service"], check=True)
+    subprocess.run(["systemctl", "enable", "parrot.service"], check=True)
+    subprocess.run(["systemctl", "restart", "hblink3.service"], check=True)
+    subprocess.run(["systemctl", "restart", "parrot.service"], check=True)
+
+# === Main Entry ===
+
+def main():
+    ensure_root()
+
+    # Detect mode
+    role = None
+    cfg_file = None
+
+    if "--role" in sys.argv:
+        role_index = sys.argv.index("--role") + 1
+        role = sys.argv[role_index].lower()
+
+    if "--config" in sys.argv:
+        config_index = sys.argv.index("--config") + 1
+        cfg_file = sys.argv[config_index]
+
+    if not role:
+        print("Select system role:\n  1) Repeater\n  2) Hotspot\n  3) VPS")
+        choice = input("Enter choice [1-3]: ").strip()
+        role = { "1": "repeater", "2": "hotspot", "3": "vps" }.get(choice, "repeater")
+
+    if not cfg_file:
+        cfg_file = input(f"Enter path to config file for {role} (leave blank to skip): ").strip() or None
+
+    if cfg_file:
+        say(f"Loading config file: {cfg_file}")
+        cfg = load_config(cfg_file)
+    else:
+        cfg = {}
+
+    say(f"Installing for role: {role}")
+
+    if role == "repeater":
+        install_repeater(cfg)
+    elif role == "hotspot":
+        install_hotspot(cfg)
+    elif role == "vps":
+        install_vps(cfg)
+    else:
+        say(f"Unknown role: {role}")
+        sys.exit(1)
+
+    say("✅ Install complete.")
+
+if __name__ == "__main__":
+    main()
