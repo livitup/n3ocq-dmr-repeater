@@ -3,8 +3,8 @@
 set -e
 
 # === CONFIGURATION ===
-REPO_URL="https://github.com/livitup/dmr-repeater-setup-tools.git"
-CLONE_DIR="$HOME/dmr-repeater-setup-tools"
+REPO_URL="https://github.com/livitup/n3ocq-dmr-repeater.git"
+CLONE_DIR="$HOME/n3ocq-dmr-repeater"
 CONFIG_FILE="/etc/dmr/setup.cfg"
 LOG_FILE="/var/log/bootstrap.log"
 ROLE="repeater"
@@ -96,7 +96,7 @@ function install_mmdvmhost() {
 }
 
 run_python_installer() {
-  say "Cloning dmr-repeater-setup-tools repository..."
+  say "Cloning n3ocq-dmr-repeater repository..."
   if [ ! -d "$CLONE_DIR" ]; then
     git clone "$REPO_URL" "$CLONE_DIR" | tee -a "$LOG_FILE"
   else

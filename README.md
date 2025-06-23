@@ -7,7 +7,7 @@ This repository provides scripts and templates to fully set up a DMR repeater, h
 ## Repository Structure
 
 ```
-dmr-repeater-setup-tools/
+n3ocq-dmr-repeater/
 ├── bootstrap_pi_repeater.sh    # Raspberry Pi bootstrapper for repeaters
 ├── install.py                  # Common Python installer for all roles
 ├── templates/                  # Jinja-style templates for INI and service files
@@ -32,7 +32,7 @@ dmr-repeater-setup-tools/
 ## Installation (for Pi-based Repeater)
 
 ```bash
-curl -O https://raw.githubusercontent.com/YOURNAME/dmr-repeater-setup-tools/main/bootstrap_pi_repeater.sh
+curl -O https://raw.githubusercontent.com/livitup/n3ocq-dmr-repeater/main/bootstrap_pi_repeater.sh
 chmod +x bootstrap_pi_repeater.sh
 sudo ./bootstrap_pi_repeater.sh --config /etc/dmr/setup.cfg
 ```
