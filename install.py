@@ -5,11 +5,22 @@ import sys
 import shutil
 import configparser
 import subprocess
+import serial.tools.list_ports
 from pathlib import Path
 from datetime import datetime
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = SCRIPT_DIR / "templates"
+
+def autodetect_modem_port():
+    candidates = list(serial.tools.list_ports.comports())
+    for port in candidates:
+        desc = port.description.lower()
+        if "mmdvm" in desc or "usb" in desc or "ttyacm" in port.device.lower():
+            return port.device
+    # fallback
+    return "/dev/ttyACM0"  # common default
+    log(f"Autodetected MODEM_PORT: {context['MODEM_PORT']}")
 
 def log(msg):
     print(f"[INSTALL] {msg}")
@@ -48,7 +59,8 @@ def install_repeater(cfg):
     context = {
         "REPEATER_ID": cfg.get("REPEATER_ID", ""),
         "BM_PASSWORD": cfg.get("BM_PASSWORD", ""),
-        "HBLINK_IP": cfg.get("HBLINK_IP", "")
+        "HBLINK_IP": cfg.get("HBLINK_IP", ""),
+        "MODEM_PORT": cfg.get("MODEM_PORT", autodetect_modem_port())
     }
 
     log("Rendering systemd services...")

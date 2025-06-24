@@ -67,6 +67,9 @@ install_dependencies() {
     libwxgtk3.2-dev libasound2-dev libudev-dev \
     libpulse-dev libfftw3-dev libgps-dev libi2c-dev \
     wireless-tools wpasupplicant net-tools | tee -a "$LOG_FILE"
+  echo "[BOOTSTRAP] Installing Python dependencies..."
+  pip3 install --upgrade pip
+  pip3 install pyserial
 }
 
 create_user() {
