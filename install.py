@@ -39,7 +39,7 @@ def autodetect_modem_port():
 
 
 def log(msg):
-    print(f"[INSTALL] {msg}")
+    print(f"\033[1;32m[INSTALL]\033[0m {msg}")
 
 def load_config(path):
     log(f"Loading config file: {path}")
