@@ -31,31 +31,20 @@ configure_uart_for_pi() {
   MODEL=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || echo "Unknown")
   say "Detected Raspberry Pi model: $MODEL"
 
-  enable_uart_set=$(grep -E "^enable_uart=1" "$FIRMWARE_CONFIG_FILE" || true)
-  disable_bt_set=$(grep -E "^dtoverlay=disable-bt" "$FIRMWARE_CONFIG_FILE" || true)
-  uart1_set=$(grep -E "^dtoverlay=uart1" "$FIRMWARE_CONFIG_FILE" || true)
-
-  update_config() {
-    sed -i '/^enable_uart=/d' "$FIRMWARE_CONFIG_FILE"
-    echo "enable_uart=1" | tee -a "$FIRMWARE_CONFIG_FILE" >> "$LOG_FILE"
-
-    if [[ "$1" == "disable-bt" ]]; then
-      sed -i '/^dtoverlay=disable-bt/d' "$FIRMWARE_CONFIG_FILE"
-      echo "dtoverlay=disable-bt" | tee -a "$FIRMWARE_CONFIG_FILE" >> "$LOG_FILE"
-    elif [[ "$1" == "uart1" ]]; then
-      sed -i '/^dtoverlay=uart1/d' "$FIRMWARE_CONFIG_FILE"
-      echo "dtoverlay=uart1" | tee -a "$FIRMWARE_CONFIG_FILE" >> "$LOG_FILE"
-    fi
-  }
+  local target_section=""
+  local uart_line=""
+  local overlay_line=""
 
   case "$MODEL" in
     *"Raspberry Pi 4"*|*"Raspberry Pi 3"*|*"Compute Module 4"*)
-      say "Applying: enable_uart=1 + dtoverlay=disable-bt"
-      update_config disable-bt
+      target_section="[all]"
+      uart_line="enable_uart=1"
+      overlay_line="dtoverlay=disable-bt"
       ;;
     *"Raspberry Pi 5"*|*"Compute Module 5"*)
-      say "Applying: enable_uart=1 + dtoverlay=uart1"
-      update_config uart1
+      target_section="[cm5]"
+      uart_line="enable_uart=1"
+      overlay_line="dtoverlay=uart1"
       ;;
     *)
       say "⚠️ Unknown Pi model. Skipping UART config."
@@ -63,23 +52,70 @@ configure_uart_for_pi() {
       ;;
   esac
 
-  # Remove serial console if present in cmdline.txt
+  # Check if both lines already exist under the correct section
+  if grep -q "$target_section" "$FIRMWARE_CONFIG_FILE" &&
+     grep -A2 "$target_section" "$FIRMWARE_CONFIG_FILE" | grep -q "$uart_line" &&
+     grep -A2 "$target_section" "$FIRMWARE_CONFIG_FILE" | grep -q "$overlay_line"; then
+    say "UART already configured correctly under $target_section. Skipping."
+    return
+  fi
+
+  say "Applying UART config under $target_section..."
+
+  # Rewrite config to add UART settings inside correct section
+  tmpfile=$(mktemp)
+  awk -v section="$target_section" -v uart="$uart_line" -v overlay="$overlay_line" '
+    BEGIN { found=0 }
+    {
+      if ($0 == section) {
+        print $0
+        found = 1
+        next
+      }
+      if (found && $0 ~ /^\[.*\]/) {
+        print uart
+        print overlay
+        found = 0
+      }
+      if (!found || $0 !~ /^\[.*\]/) {
+        print $0
+      }
+    }
+    END {
+      if (found) {
+        print uart
+        print overlay
+      }
+      if (!found && section != "") {
+        print ""
+        print section
+        print uart
+        print overlay
+      }
+    }
+  ' "$FIRMWARE_CONFIG_FILE" > "$tmpfile" && mv "$tmpfile" "$FIRMWARE_CONFIG_FILE"
+
+  say "UART configuration applied to $target_section:"
+  say "  - $uart_line"
+  say "  - $overlay_line"
+
+  # Remove serial console from cmdline.txt
   if grep -q "console=serial0" "$CMDLINE_FILE"; then
     say "Removing serial console from cmdline.txt..."
     sed -i 's/console=serial0[^ ]* //g' "$CMDLINE_FILE"
     sed -i 's/console=ttyAMA0[^ ]* //g' "$CMDLINE_FILE"
   fi
-  # Disable Bluetooth if necessary
+
   if [[ "$MODEL" == *"Raspberry Pi 4"* || "$MODEL" == *"Raspberry Pi 3"* || "$MODEL" == *"Compute Module 4"* ]]; then
     say "Disabling hciuart service to free ttyAMA0..."
     systemctl disable hciuart 2>/dev/null || true
   fi
+
   echo -e "\nUART config updated. A reboot is required."
   read -p "Reboot now? [y/N]: " do_reboot
   if [[ "$do_reboot" =~ ^[Yy]$ ]]; then
     say "Rebooting..."
     reboot
-    exit 0  # Ensure the script stops immediately
   else
     say "Please reboot manually, then re-run this script."
     exit 1
