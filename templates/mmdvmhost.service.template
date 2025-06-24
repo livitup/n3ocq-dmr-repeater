@@ -1,0 +1,17 @@
+[Unit]
+Description=MMDVMHost Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/MMDVMHost /etc/MMDVM.ini
+Restart=always
+User=mmdvm
+Group=mmdvm
+WorkingDirectory=/var/log/mmdvm
+StandardOutput=append:/var/log/mmdvm/mmdvmhost.log
+StandardError=append:/var/log/mmdvm/mmdvmhost.err.log
+
+[Install]
+WantedBy=multi-user.target
+

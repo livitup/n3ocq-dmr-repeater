@@ -69,6 +69,13 @@ install_dependencies() {
     wireless-tools wpasupplicant net-tools | tee -a "$LOG_FILE"
 }
 
+create_user() {
+  say "Ensuring mmdvm user and log directory exist..."
+  id mmdvm &>/dev/null || useradd --system --home /var/log/mmdvm --shell /usr/sbin/nologin mmdvm
+  mkdir -p /var/log/mmdvm
+  chown mmdvm:mmdvm /var/log/mmdvm
+}
+
 install_dmrgateway() {
   say "Installing DMRGateway from source..."
   if [ ! -d "$HOME/DMRGateway" ]; then
@@ -138,6 +145,7 @@ sudo chown "$(whoami):$(whoami)" "$LOG_FILE"
 
 configure_networking
 install_dependencies
+create_user
 install_dmrgateway
 install_mmdvmhost
 run_python_installer
