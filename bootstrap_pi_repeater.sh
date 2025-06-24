@@ -62,14 +62,11 @@ install_dependencies() {
   sudo apt install -y \
     git \
     build-essential cmake \
-    python3 python3-venv python3-pip \
+    python3 python3-venv python3-pip python3-pyserial \
     libusb-1.0-0-dev \
     libwxgtk3.2-dev libasound2-dev libudev-dev \
     libpulse-dev libfftw3-dev libgps-dev libi2c-dev \
     wireless-tools wpasupplicant net-tools | tee -a "$LOG_FILE"
-  echo "[BOOTSTRAP] Installing Python dependencies..."
-  pip3 install --upgrade pip
-  pip3 install pyserial
 }
 
 create_user() {
