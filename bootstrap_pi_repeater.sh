@@ -5,51 +5,83 @@ set -e
 
 # === CONFIGURATION ===
 REPO_URL="https://github.com/livitup/n3ocq-dmr-repeater.git"
-CLONE_DIR="$HOME/n3ocq-dmr-repeater"
+CLONE_DIR="/opt/n3ocq-dmr-repeater"
 CONFIG_FILE="/etc/dmr/setup.cfg"
 LOG_FILE="/var/log/bootstrap.log"
 ROLE="repeater"
+G4KLX_DIR="/opt"
+MMDVM_DIR="/opt"
 
 # === FUNCTIONS ===
 say() {
   echo -e "\033[1;32m[BOOTSTRAP]\033[0m $1" | tee -a "$LOG_FILE"
 }
 
-check_uart_config() {
-  UART_CONFIG="/boot/firmware/config.txt"
-
+configure_uart_for_pi() {
   say "Checking UART configuration..."
 
-  if ! grep -q "^enable_uart=1" "$UART_CONFIG"; then
-    echo -e "\nUART is not enabled in $UART_CONFIG." | tee -a "$LOG_FILE"
-    echo "Without this, your MMDVM modem may not be accessible via serial." | tee -a "$LOG_FILE"
-    echo "Would you like to fix this now? (Recommended)" | tee -a "$LOG_FILE"
-    read -p "Fix UART settings and reboot now? [y/N]: " fix_uart
+  local FIRMWARE_CONFIG_FILE="/boot/firmware/config.txt"
+  local CMDLINE_FILE="/boot/firmware/cmdline.txt"
 
-    if [[ "$fix_uart" =~ ^[Yy]$ ]]; then
-      sudo sed -i '/^enable_uart=/d' "$UART_CONFIG"
-      echo "enable_uart=1" | sudo tee -a "$UART_CONFIG" >> "$LOG_FILE"
+  if [ ! -f "$FIRMWARE_CONFIG_FILE" ]; then
+    say "⚠️ Cannot find $FIRMWARE_CONFIG_FILE"
+    return
+  fi
 
-      if ! grep -q "^dtoverlay=uart1" "$UART_CONFIG"; then
-        echo "dtoverlay=uart1" | sudo tee -a "$UART_CONFIG" >> "$LOG_FILE"
-      fi
+  MODEL=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || echo "Unknown")
+  say "Detected Raspberry Pi model: $MODEL"
 
-      say "UART has been enabled. A reboot is required to apply the change."
-      read -p "Reboot now? [y/N]: " do_reboot
+  enable_uart_set=$(grep -E "^enable_uart=1" "$FIRMWARE_CONFIG_FILE" || true)
+  disable_bt_set=$(grep -E "^dtoverlay=disable-bt" "$FIRMWARE_CONFIG_FILE" || true)
+  uart1_set=$(grep -E "^dtoverlay=uart1" "$FIRMWARE_CONFIG_FILE" || true)
 
-      if [[ "$do_reboot" =~ ^[Yy]$ ]]; then
-        say "Rebooting system. Please rerun this script after reboot."
-        sudo reboot
-        exit 0
-      else
-        say "Reboot skipped. Please reboot manually before continuing."
-        exit 1
-      fi
-    else
-      say "Skipping UART fix. This may cause serial issues with the modem."
+  update_config() {
+    sed -i '/^enable_uart=/d' "$FIRMWARE_CONFIG_FILE"
+    echo "enable_uart=1" | tee -a "$FIRMWARE_CONFIG_FILE" >> "$LOG_FILE"
+
+    if [[ "$1" == "disable-bt" ]]; then
+      sed -i '/^dtoverlay=disable-bt/d' "$FIRMWARE_CONFIG_FILE"
+      echo "dtoverlay=disable-bt" | tee -a "$FIRMWARE_CONFIG_FILE" >> "$LOG_FILE"
+    elif [[ "$1" == "uart1" ]]; then
+      sed -i '/^dtoverlay=uart1/d' "$FIRMWARE_CONFIG_FILE"
+      echo "dtoverlay=uart1" | tee -a "$FIRMWARE_CONFIG_FILE" >> "$LOG_FILE"
     fi
+  }
+
+  case "$MODEL" in
+    *"Raspberry Pi 4"*|*"Raspberry Pi 3"*|*"Compute Module 4"*)
+      say "Applying: enable_uart=1 + dtoverlay=disable-bt"
+      update_config disable-bt
+      ;;
+    *"Raspberry Pi 5"*|*"Compute Module 5"*)
+      say "Applying: enable_uart=1 + dtoverlay=uart1"
+      update_config uart1
+      ;;
+    *)
+      say "⚠️ Unknown Pi model. Skipping UART config."
+      return
+      ;;
+  esac
+
+  # Remove serial console if present in cmdline.txt
+  if grep -q "console=serial0" "$CMDLINE_FILE"; then
+    say "Removing serial console from cmdline.txt..."
+    sed -i 's/console=serial0[^ ]* //g' "$CMDLINE_FILE"
+    sed -i 's/console=ttyAMA0[^ ]* //g' "$CMDLINE_FILE"
+  fi
+  # Disable Bluetooth if necessary
+  if [[ "$MODEL" == *"Raspberry Pi 4"* || "$MODEL" == *"Raspberry Pi 3"* || "$MODEL" == *"Compute Module 4"* ]]; then
+    say "Disabling hciuart service to free ttyAMA0..."
+    systemctl disable hciuart 2>/dev/null || true
+  fi
+  echo -e "\nUART config updated. A reboot is required."
+  read -p "Reboot now? [y/N]: " do_reboot
+  if [[ "$do_reboot" =~ ^[Yy]$ ]]; then
+    say "Rebooting..."
+    reboot
   else
-    say "UART is already enabled."
+    say "Please reboot manually, then re-run this script."
+    exit 1
   fi
 }
 
@@ -64,14 +96,17 @@ configure_networking() {
   case $net_choice in
     1)
       say "Using wired DHCP (default)."
-      sudo rm -f /etc/dhcpcd.conf
-      echo -e "interface eth0\n  fallback static_eth0" | sudo tee /etc/dhcpcd.conf >> "$LOG_FILE"
+      cp /etc/dhcpcd.conf /etc/dhcpcd.conf.bak.$(date +%s) 2>/dev/null || true
+      rm -f /etc/dhcpcd.conf
+      echo -e "interface eth0\n  fallback static_eth0" | tee /etc/dhcpcd.conf >> "$LOG_FILE"
+      say "Wrote /etc/dhcpcd.conf:"
+      cat /etc/dhcpcd.conf | tee -a "$LOG_FILE"
       ;;
     2)
       read -p "Enter static IP address (e.g. 192.168.1.100/24): " static_ip
       read -p "Enter gateway (e.g. 192.168.1.1): " gateway
       say "Configuring wired static IP..."
-      sudo bash -c "cat > /etc/dhcpcd.conf" <<EOF
+      tee /etc/dhcpcd.conf > /dev/null <<EOF
 interface eth0
   static ip_address=$static_ip
   static routers=$gateway
@@ -82,23 +117,36 @@ EOF
       read -p "Enter Wi-Fi SSID: " ssid
       read -sp "Enter Wi-Fi Password: " password
       echo ""
+
+      # Check for existing Wi-Fi config
+      if [ -f /etc/wpa_supplicant/wpa_supplicant.conf ]; then
+        if grep -q "ssid=" /etc/wpa_supplicant/wpa_supplicant.conf; then
+          say "⚠️ An existing Wi-Fi configuration may interfere with the new setup:"
+          say "    /etc/wpa_supplicant/wpa_supplicant.conf"
+          say "    You may want to delete or review it before proceeding."
+          read -p "Continue and overwrite it? [y/N]: " confirm_wifi
+          if [[ ! "$confirm_wifi" =~ ^[Yy]$ ]]; then
+            say "Aborting Wi-Fi configuration."
+            return
+          fi
+        fi
+      fi
+
       say "Configuring Wi-Fi..."
-      sudo bash -c "wpa_passphrase '$ssid' '$password' > /etc/wpa_supplicant/wpa_supplicant.conf"
-      sudo rfkill unblock wifi
-      sudo systemctl enable wpa_supplicant
-      sudo systemctl restart wpa_supplicant
+      bash -c "wpa_passphrase '$ssid' '$password' > /etc/wpa_supplicant/wpa_supplicant.conf"
+      rfkill unblock wifi
+      systemctl enable wpa_supplicant
+      systemctl restart wpa_supplicant
       ;;
-    *)
-      echo "Invalid selection. Defaulting to wired DHCP." | tee -a "$LOG_FILE"
-      ;;
+
   esac
 }
 
 install_dependencies() {
   say "Updating package index and installing dependencies..."
-  sudo apt update | tee -a "$LOG_FILE"
-  sudo apt full-upgrade -y | tee -a "$LOG_FILE"
-  sudo apt install -y \
+  apt update | tee -a "$LOG_FILE"
+  apt full-upgrade -y | tee -a "$LOG_FILE"
+  apt install -y \
     git \
     build-essential cmake \
     python3 python3-venv python3-pip python3-serial \
@@ -117,35 +165,35 @@ create_user() {
 
 install_dmrgateway() {
   say "Installing DMRGateway from source..."
-  if [ ! -d "$HOME/DMRGateway" ]; then
-    git clone https://github.com/g4klx/DMRGateway.git "$HOME/DMRGateway" | tee -a "$LOG_FILE"
+  if [ ! -d "$G4KLX_DIR/DMRGateway" ]; then
+    git clone https://github.com/g4klx/DMRGateway.git "$G4KLX_DIR/DMRGateway" | tee -a "$LOG_FILE"
   else
     say "DMRGateway source already exists. Skipping clone."
   fi
-  cd "$HOME/DMRGateway"
+  cd "$G4KLX_DIR/DMRGateway"
   if [ -f DMRGateway ]; then
     say "DMRGateway binary already exists. Skipping build."
   else
     make -j$(nproc) | tee -a "$LOG_FILE"
   fi
-  sudo cp DMRGateway /usr/local/bin/
+  cp DMRGateway /usr/local/bin/
   say "DMRGateway installed to /usr/local/bin/DMRGateway"
 }
 
 install_mmdvmhost() {
   say "Installing MMDVMHost from source..."
-  if [ ! -d "$HOME/MMDVMHost" ]; then
-    git clone https://github.com/g4klx/MMDVMHost.git "$HOME/MMDVMHost" | tee -a "$LOG_FILE"
+  if [ ! -d "$MMDVM_DIR/MMDVMHost" ]; then
+    git clone https://github.com/g4klx/MMDVMHost.git "$MMDVM_DIR/MMDVMHost" | tee -a "$LOG_FILE"
   else
     say "MMDVMHost source already exists. Skipping clone."
   fi
-  cd "$HOME/MMDVMHost"
+  cd "$MMDVM_DIR/MMDVMHost"
   if [ -f MMDVMHost ]; then
     say "MMDVMHost binary already exists. Skipping build."
   else
     make -j$(nproc) | tee -a "$LOG_FILE"
   fi
-  sudo cp MMDVMHost /usr/local/bin/
+  cp MMDVMHost /usr/local/bin/
   say "MMDVMHost installed to /usr/local/bin/MMDVMHost"
 }
 
@@ -161,7 +209,7 @@ run_python_installer() {
     fi
   else
     say "Repository already exists. Pulling latest changes..."
-    cd "$CLONE_DIR"
+    cd "$CLONE_DIR" || { say "❌ Failed to cd into $CLONE_DIR"; exit 1; }
     if git pull | tee -a "$LOG_FILE"; then
       say "Repository updated."
     else
@@ -173,24 +221,24 @@ run_python_installer() {
 
   if [ -f "$CONFIG_FILE" ]; then
     say "Using config file at $CONFIG_FILE for installation..."
-    sudo python3 install.py --role "$ROLE" --config "$CONFIG_FILE" | tee -a "$LOG_FILE"
+    python3 install.py --role "$ROLE" --config "$CONFIG_FILE" | tee -a "$LOG_FILE"
   else
     say "No config file found. Proceeding with interactive install..."
-    sudo python3 install.py --role "$ROLE" | tee -a "$LOG_FILE"
+    python3 install.py --role "$ROLE" | tee -a "$LOG_FILE"
   fi
 }
 
 stop_services() {
-  say "Stopping DMRGateway and MMDVM service..."
-  sudo systemctl stop dmrgateway.service | tee -a "$LOG_FILE"
-  sudo systemctl stop mmdvm.service | tee -a "$LOG_FILE"
+  say "Stopping DMRGateway and MMDVM services..."
+  systemctl stop dmrgateway.service | tee -a "$LOG_FILE"
+  systemctl stop mmdvmhost.service | tee -a "$LOG_FILE"
 }
 
 start_services() {
   say "Enabling and starting DMRGateway service..."
-  sudo systemctl daemon-reload | tee -a "$LOG_FILE"
-  sudo systemctl enable dmrgateway.service | tee -a "$LOG_FILE"
-  sudo systemctl restart dmrgateway.service | tee -a "$LOG_FILE"
+  systemctl daemon-reload | tee -a "$LOG_FILE"
+  systemctl enable dmrgateway.service | tee -a "$LOG_FILE"
+  systemctl restart dmrgateway.service | tee -a "$LOG_FILE"
 
   if systemctl is-active --quiet dmrgateway.service; then
     say "✅ DMRGateway service is running."
@@ -200,13 +248,13 @@ start_services() {
 }
 
 # === MAIN ===
-
+[ "$EUID" -ne 0 ] && echo "Please run as root" && exit 1
 mkdir -p /var/log
-sudo rm -f "$LOG_FILE"
-sudo touch "$LOG_FILE"
-sudo chown "$(whoami):$(whoami)" "$LOG_FILE"
+rm -f "$LOG_FILE"
+touch "$LOG_FILE"
+chown "$(whoami):$(whoami)" "$LOG_FILE"
 
-check_uart_config
+configure_uart_for_pi
 configure_networking
 install_dependencies
 stop_services
@@ -217,4 +265,4 @@ run_python_installer
 start_services
 
 say "Setup complete. You may reboot if desired."
-echo -e "\nTo start services manually:\n  sudo systemctl restart dmrgateway.service\n  sudo systemctl restart mmdvmhost.service" | tee -a "$LOG_FILE"
+echo -e "\nTo start services manually:\n  systemctl restart dmrgateway.service\n  systemctl restart mmdvmhost.service" | tee -a "$LOG_FILE"
