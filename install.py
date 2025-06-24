@@ -14,16 +14,29 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = SCRIPT_DIR / "templates"
 
 def autodetect_modem_port():
-    candidates = list(serial.tools.list_ports.comports())
-    for port in candidates:
+    # Step 1: Try USB-based devices first (what list_ports finds)
+    ports = list(serial.tools.list_ports.comports())
+    for port in ports:
         desc = port.description.lower()
         if "mmdvm" in desc or "usb" in desc or "ttyacm" in port.device.lower():
-            log(f"Autodetected MODEM_PORT: {port.device}")
             return port.device
-    # fallback
-    fallback = "/dev/ttyACM0"
-    log(f"No modem found, using fallback MODEM_PORT: {fallback}")
-    return fallback
+
+    # Step 2: Fallback scan for likely physical UART ports
+    common_uart_ports = [
+        "/dev/ttyAMA0",
+        "/dev/ttyAMA1",
+        "/dev/ttyS0",
+        "/dev/serial0",
+        "/dev/serial1"
+    ]
+
+    for dev in common_uart_ports:
+        if Path(dev).exists():
+            return dev
+
+    # Step 3: Absolute fallback
+    return "/dev/ttyAMA0"
+
 
 def log(msg):
     print(f"[INSTALL] {msg}")
@@ -118,7 +131,7 @@ def install_vps(cfg):
     log("Stopping any running services...")
     subprocess.run(["systemctl", "stop", "hblink3.service"], check=False)
     subprocess.run(["systemctl", "stop", "parrot.service"], check=False)
-    
+
     context = {
         "REPEATER_ID": cfg.get("REPEATER_ID", ""),
         "HOTSPOT_ID": cfg.get("HOTSPOT_ID", ""),
