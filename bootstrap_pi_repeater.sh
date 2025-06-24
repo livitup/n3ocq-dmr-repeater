@@ -15,6 +15,44 @@ say() {
   echo -e "\033[1;32m[BOOTSTRAP]\033[0m $1" | tee -a "$LOG_FILE"
 }
 
+check_uart_config() {
+  UART_CONFIG="/boot/firmware/config.txt"
+
+  say "Checking UART configuration..."
+
+  if ! grep -q "^enable_uart=1" "$UART_CONFIG"; then
+    echo -e "\nUART is not enabled in $UART_CONFIG." | tee -a "$LOG_FILE"
+    echo "Without this, your MMDVM modem may not be accessible via serial." | tee -a "$LOG_FILE"
+    echo "Would you like to fix this now? (Recommended)" | tee -a "$LOG_FILE"
+    read -p "Fix UART settings and reboot now? [y/N]: " fix_uart
+
+    if [[ "$fix_uart" =~ ^[Yy]$ ]]; then
+      sudo sed -i '/^enable_uart=/d' "$UART_CONFIG"
+      echo "enable_uart=1" | sudo tee -a "$UART_CONFIG" >> "$LOG_FILE"
+
+      if ! grep -q "^dtoverlay=uart1" "$UART_CONFIG"; then
+        echo "dtoverlay=uart1" | sudo tee -a "$UART_CONFIG" >> "$LOG_FILE"
+      fi
+
+      say "UART has been enabled. A reboot is required to apply the change."
+      read -p "Reboot now? [y/N]: " do_reboot
+
+      if [[ "$do_reboot" =~ ^[Yy]$ ]]; then
+        say "Rebooting system. Please rerun this script after reboot."
+        sudo reboot
+        exit 0
+      else
+        say "Reboot skipped. Please reboot manually before continuing."
+        exit 1
+      fi
+    else
+      say "Skipping UART fix. This may cause serial issues with the modem."
+    fi
+  else
+    say "UART is already enabled."
+  fi
+}
+
 configure_networking() {
   echo "" | tee -a "$LOG_FILE"
   echo "Select network configuration mode:" | tee -a "$LOG_FILE"
@@ -168,6 +206,7 @@ sudo rm -f "$LOG_FILE"
 sudo touch "$LOG_FILE"
 sudo chown "$(whoami):$(whoami)" "$LOG_FILE"
 
+check_uart_config
 configure_networking
 install_dependencies
 stop_services
