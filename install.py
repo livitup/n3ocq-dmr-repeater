@@ -74,11 +74,14 @@ def install_repeater(cfg):
     subprocess.run(["systemctl", "stop", "mmdvmhost.service"], check=False)
     subprocess.run(["systemctl", "stop", "dmrgateway.service"], check=False)
 
+    modem_port = cfg.get("MODEM_PORT", autodetect_modem_port())
+    log(f"Autodetected MODEM_PORT: {modem_port}")
+
     context = {
         "REPEATER_ID": cfg.get("REPEATER_ID", ""),
         "BM_PASSWORD": cfg.get("BM_PASSWORD", ""),
         "HBLINK_IP": cfg.get("HBLINK_IP", ""),
-        "MODEM_PORT": cfg.get("MODEM_PORT", autodetect_modem_port())
+        "MODEM_PORT": modem_port
     }
 
     log("Rendering systemd services...")
