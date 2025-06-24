@@ -18,10 +18,12 @@ def autodetect_modem_port():
     for port in candidates:
         desc = port.description.lower()
         if "mmdvm" in desc or "usb" in desc or "ttyacm" in port.device.lower():
+            log(f"Autodetected MODEM_PORT: {port.device}")
             return port.device
     # fallback
-    return "/dev/ttyACM0"  # common default
-    log(f"Autodetected MODEM_PORT: {context['MODEM_PORT']}")
+    fallback = "/dev/ttyACM0"
+    log(f"No modem found, using fallback MODEM_PORT: {fallback}")
+    return fallback
 
 def log(msg):
     print(f"[INSTALL] {msg}")
