@@ -62,24 +62,24 @@ If no `--config` file is passed, values will be requested interactively.
 ### Repeater (`repeater.cfg`)
 ```ini
 [DEFAULT]
-REPEATER_ID = 1234567
+REPEATER_ID = your_repeater_id
 BM_PASSWORD = your_bm_password
-HBLINK_IP   = 192.168.1.100
+HBLINK_IP   = your.hblink.server.ip
 ```
 
 ### Hotspot (`hotspot.cfg`)
 ```ini
 [DEFAULT]
-HOTSPOT_ID = 123456789
+HOTSPOT_ID = your_hotspot_id
 BM_PASSWORD = your_bm_password
-HBLINK_IP   = 192.168.1.100
+HBLINK_IP   = your.hblink.server.ip
 ```
 
 ### VPS (`vps.cfg`)
 ```ini
 [DEFAULT]
-REPEATER_ID = 1234567
-HOTSPOT_ID  = 123456789
+REPEATER_ID = your_repeater_id
+HOTSPOT_ID  = your_hotspot_id
 BM_PASSWORD = your_bm_password
 PARROT_ID   = 9999
 ```
