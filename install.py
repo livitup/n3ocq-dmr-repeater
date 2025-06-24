@@ -8,6 +8,7 @@ import subprocess
 import serial.tools.list_ports
 from pathlib import Path
 from datetime import datetime
+from string import Template
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = SCRIPT_DIR / "templates"
@@ -35,12 +36,9 @@ def render_template(template_name, output_path, context):
     template_path = TEMPLATE_DIR / template_name
     if not template_path.exists():
         raise FileNotFoundError(f"Missing template: {template_path}")
-    
-    with open(template_path, "r") as f:
-        content = f.read()
 
-    for key, value in context.items():
-        content = content.replace(f"{{{{{key}}}}}", str(value))
+    with open(template_path, "r") as f:
+        content = Template(f.read()).safe_substitute(context)
 
     output_path = Path(output_path)
     if output_path.exists():
