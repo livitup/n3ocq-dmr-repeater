@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 set -e
@@ -84,12 +85,16 @@ install_dmrgateway() {
     say "DMRGateway source already exists. Skipping clone."
   fi
   cd "$HOME/DMRGateway"
-  make -j$(nproc) | tee -a "$LOG_FILE"
+  if [ -f DMRGateway ]; then
+    say "DMRGateway binary already exists. Skipping build."
+  else
+    make -j$(nproc) | tee -a "$LOG_FILE"
+  fi
   sudo cp DMRGateway /usr/local/bin/
   say "DMRGateway installed to /usr/local/bin/DMRGateway"
 }
 
-function install_mmdvmhost() {
+install_mmdvmhost() {
   say "Installing MMDVMHost from source..."
   if [ ! -d "$HOME/MMDVMHost" ]; then
     git clone https://github.com/g4klx/MMDVMHost.git "$HOME/MMDVMHost" | tee -a "$LOG_FILE"
@@ -97,7 +102,11 @@ function install_mmdvmhost() {
     say "MMDVMHost source already exists. Skipping clone."
   fi
   cd "$HOME/MMDVMHost"
-  make -j$(nproc) | tee -a "$LOG_FILE"
+  if [ -f MMDVMHost ]; then
+    say "MMDVMHost binary already exists. Skipping build."
+  else
+    make -j$(nproc) | tee -a "$LOG_FILE"
+  fi
   sudo cp MMDVMHost /usr/local/bin/
   say "MMDVMHost installed to /usr/local/bin/MMDVMHost"
 }
