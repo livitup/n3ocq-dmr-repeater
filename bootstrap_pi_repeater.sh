@@ -152,4 +152,4 @@ run_python_installer
 start_services
 
 say "Setup complete. You may reboot if desired."
-echo -e "\nTo start services manually:\n  sudo systemctl restart dmrgateway.service" | tee -a "$LOG_FILE"
+echo -e "\nTo start services manually:\n  sudo systemctl restart dmrgateway.service\n  sudo systemctl restart mmdvmhost.service" | tee -a "$LOG_FILE"
