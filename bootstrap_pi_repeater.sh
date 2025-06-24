@@ -112,13 +112,23 @@ install_mmdvmhost() {
 }
 
 run_python_installer() {
-  say "Cloning n3ocq-dmr-repeater repository..."
-  if [ ! -d "$CLONE_DIR" ]; then
-    git clone "$REPO_URL" "$CLONE_DIR" | tee -a "$LOG_FILE"
+  say "Preparing n3ocq-dmr-repeater repository..."
+  if [ ! -d "$CLONE_DIR/.git" ]; then
+    say "Cloning repository..."
+    if git clone "$REPO_URL" "$CLONE_DIR" | tee -a "$LOG_FILE"; then
+      say "Repository cloned successfully."
+    else
+      say "❌ Failed to clone repository. Exiting."
+      exit 1
+    fi
   else
-    say "Repo already cloned. Pulling latest changes..."
+    say "Repository already exists. Pulling latest changes..."
     cd "$CLONE_DIR"
-    git pull | tee -a "$LOG_FILE"
+    if git pull | tee -a "$LOG_FILE"; then
+      say "Repository updated."
+    else
+      say "⚠️ Failed to update repository. Continuing with existing files."
+    fi
   fi
 
   cd "$CLONE_DIR"
