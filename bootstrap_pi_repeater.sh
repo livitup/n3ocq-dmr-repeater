@@ -142,6 +142,12 @@ run_python_installer() {
   fi
 }
 
+stop_services() {
+  say "Stopping DMRGateway and MMDVM service..."
+  sudo systemctl stop dmrgateway.service | tee -a "$LOG_FILE"
+  sudo systemctl stop mmdvm.service | tee -a "$LOG_FILE"
+}
+
 start_services() {
   say "Enabling and starting DMRGateway service..."
   sudo systemctl daemon-reload | tee -a "$LOG_FILE"
