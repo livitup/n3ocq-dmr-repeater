@@ -170,6 +170,7 @@ sudo chown "$(whoami):$(whoami)" "$LOG_FILE"
 
 configure_networking
 install_dependencies
+stop_services
 create_user
 install_dmrgateway
 install_mmdvmhost
