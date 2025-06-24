@@ -79,6 +79,7 @@ configure_uart_for_pi() {
   if [[ "$do_reboot" =~ ^[Yy]$ ]]; then
     say "Rebooting..."
     reboot
+    exit 0  # Ensure the script stops immediately
   else
     say "Please reboot manually, then re-run this script."
     exit 1
