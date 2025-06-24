@@ -56,6 +56,11 @@ def render_template(template_name, output_path, context):
 
 def install_repeater(cfg):
     log("Installing for role: repeater")
+
+    log("Stopping any running services...")
+    subprocess.run(["systemctl", "stop", "mmdvmhost.service"], check=False)
+    subprocess.run(["systemctl", "stop", "dmrgateway.service"], check=False)
+
     context = {
         "REPEATER_ID": cfg.get("REPEATER_ID", ""),
         "BM_PASSWORD": cfg.get("BM_PASSWORD", ""),
@@ -76,9 +81,13 @@ def install_repeater(cfg):
     subprocess.run(["systemctl", "enable", "dmrgateway.service"], check=True)
     subprocess.run(["systemctl", "restart", "dmrgateway.service"], check=True)
 
-
 def install_hotspot(cfg):
     log("Installing for role: hotspot")
+
+    log("Stopping any running services...")
+    subprocess.run(["systemctl", "stop", "mmdvmhost.service"], check=False)
+    subprocess.run(["systemctl", "stop", "dmrgateway.service"], check=False)
+
     context = {
         "HOTSPOT_ID": cfg.get("HOTSPOT_ID", ""),
         "BM_PASSWORD": cfg.get("BM_PASSWORD", ""),
@@ -105,6 +114,11 @@ def install_hotspot(cfg):
 
 def install_vps(cfg):
     log("Installing for role: vps")
+
+    log("Stopping any running services...")
+    subprocess.run(["systemctl", "stop", "hblink3.service"], check=False)
+    subprocess.run(["systemctl", "stop", "parrot.service"], check=False)
+    
     context = {
         "REPEATER_ID": cfg.get("REPEATER_ID", ""),
         "HOTSPOT_ID": cfg.get("HOTSPOT_ID", ""),
